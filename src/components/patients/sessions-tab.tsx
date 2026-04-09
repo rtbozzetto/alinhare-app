@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useTreatmentPlans } from '@/hooks/use-treatment-plans'
 import { createClient } from '@/lib/supabase/client'
-import { type TreatmentSession, type DiscomfortRecord, type ClinicalNote } from '@/types/database'
+import { type TreatmentSession, type DiscomfortRecord, type ClinicalNote, type PatientPhoto, type PostureAnalysis, type Patient, type PatientExam } from '@/types/database'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,13 +24,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { BODY_REGIONS } from '@/lib/constants'
+import { BODY_REGIONS, PHOTO_TYPES } from '@/lib/constants'
 import { toast } from 'sonner'
-import { Check, Eye, Plus, Trash2 } from 'lucide-react'
+import { Check, Eye, Plus, Trash2, Camera, ImageIcon, Brain, Loader2, AlertTriangle, X, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SessionsTabProps {
   patientId: string
+}
+
+const PHOTO_TYPE_LABELS: Record<string, string> = {
+  frente: 'Frente',
+  costas: 'Costas',
+  lateral_direita: 'Lateral D',
+  lateral_esquerda: 'Lateral E',
 }
 
 export function SessionsTab({ patientId }: SessionsTabProps) {
@@ -53,6 +60,18 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
   const [newClinicalNote, setNewClinicalNote] = useState('')
 
   const [saving, setSaving] = useState(false)
+
+  // Photo states
+  const [sessionPhotos, setSessionPhotos] = useState<PatientPhoto[]>([])
+  const [uploadingType, setUploadingType] = useState<string | null>(null)
+  const [validatingType, setValidatingType] = useState<string | null>(null)
+  const [validationError, setValidationError] = useState<{ type: string; message: string; issues: string[] } | null>(null)
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const cameraInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  // AI Analysis states
+  const [analyzing, setAnalyzing] = useState(false)
+  const [currentAnalysis, setCurrentAnalysis] = useState<PostureAnalysis | null>(null)
 
   useEffect(() => {
     fetchPlans()
@@ -80,6 +99,36 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
       .eq('session_id', session.id)
       .order('created_at')
     if (notes) setClinicalNotes(notes)
+
+    // Load session photos
+    const { data: photos } = await supabase
+      .from('patient_photos')
+      .select('*')
+      .eq('session_id', session.id)
+      .order('created_at')
+    if (photos) {
+      const photosWithUrls = await Promise.all(
+        photos.map(async (photo) => {
+          const { data: signedData } = await supabase.storage
+            .from('patient-photos')
+            .createSignedUrl(photo.photo_url, 3600)
+          return { ...photo, photo_url: signedData?.signedUrl ?? photo.photo_url }
+        })
+      )
+      setSessionPhotos(photosWithUrls)
+    } else {
+      setSessionPhotos([])
+    }
+
+    // Load existing analysis for this session
+    const { data: analysis } = await supabase
+      .from('posture_analyses')
+      .select('*')
+      .eq('session_a_id', session.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    setCurrentAnalysis(analysis)
   }, [supabase])
 
   function openDetail(session: TreatmentSession) {
@@ -87,6 +136,9 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
     setSessionNotes(session.notes ?? '')
     setDiscomfortRecords([])
     setClinicalNotes([])
+    setSessionPhotos([])
+    setCurrentAnalysis(null)
+    setValidationError(null)
     setNewRegion('')
     setNewIntensity(5)
     setNewDiscomfortNotes('')
@@ -178,6 +230,256 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
     }
   }
 
+  // ── Photo handling ──
+
+  async function validateAndUploadPhoto(file: File, photoType: string) {
+    if (!selectedSession) return
+
+    setValidationError(null)
+    setValidatingType(photoType)
+
+    // Step 1: Validate with AI
+    const formData = new FormData()
+    formData.append('photo', file)
+    formData.append('photo_type', photoType)
+
+    try {
+      const valResponse = await fetch('/api/ai/validate-photo', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!valResponse.ok) {
+        const err = await valResponse.json()
+        toast.error(err.error || 'Erro na validação da foto')
+        setValidatingType(null)
+        return
+      }
+
+      const validation = await valResponse.json()
+
+      if (!validation.valid) {
+        setValidationError({
+          type: photoType,
+          message: validation.reason || 'Foto não aprovada para análise postural.',
+          issues: validation.issues || [],
+        })
+        setValidatingType(null)
+        toast.error('Foto rejeitada. Veja os detalhes abaixo.')
+        return
+      }
+
+      setValidatingType(null)
+
+      // Step 2: Upload to storage
+      setUploadingType(photoType)
+
+      const ext = file.name.split('.').pop() || 'jpg'
+      const filePath = `${patientId}/${selectedSession.id}/${photoType}.${ext}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('patient-photos')
+        .upload(filePath, file, { upsert: true })
+
+      if (uploadError) {
+        toast.error('Erro ao fazer upload da foto.')
+        setUploadingType(null)
+        return
+      }
+
+      // Check if record already exists for this session + type
+      const existing = sessionPhotos.find(
+        p => p.session_id === selectedSession.id && p.photo_type === photoType
+      )
+
+      if (existing) {
+        await supabase
+          .from('patient_photos')
+          .update({ photo_url: filePath })
+          .eq('id', existing.id)
+      } else {
+        await supabase.from('patient_photos').insert({
+          session_id: selectedSession.id,
+          patient_id: patientId,
+          photo_type: photoType,
+          photo_url: filePath,
+        })
+      }
+
+      // Refresh photos
+      const { data: signedData } = await supabase.storage
+        .from('patient-photos')
+        .createSignedUrl(filePath, 3600)
+
+      if (existing) {
+        setSessionPhotos(prev =>
+          prev.map(p =>
+            p.id === existing.id
+              ? { ...p, photo_url: signedData?.signedUrl ?? filePath }
+              : p
+          )
+        )
+      } else {
+        // Re-fetch to get the new record with ID
+        const { data: newPhotos } = await supabase
+          .from('patient_photos')
+          .select('*')
+          .eq('session_id', selectedSession.id)
+          .eq('photo_type', photoType)
+          .single()
+        if (newPhotos) {
+          setSessionPhotos(prev => [
+            ...prev.filter(p => p.photo_type !== photoType),
+            { ...newPhotos, photo_url: signedData?.signedUrl ?? filePath },
+          ])
+        }
+      }
+
+      setUploadingType(null)
+      toast.success(`Foto ${PHOTO_TYPE_LABELS[photoType]} aprovada e salva!`)
+    } catch (err) {
+      console.error('Photo validation/upload error:', err)
+      toast.error('Erro ao processar a foto.')
+      setValidatingType(null)
+      setUploadingType(null)
+    }
+  }
+
+  async function handleDeletePhoto(photo: PatientPhoto) {
+    // Delete from storage (use the original path, not signed URL)
+    const { data: photoRecord } = await supabase
+      .from('patient_photos')
+      .select('photo_url')
+      .eq('id', photo.id)
+      .single()
+
+    if (photoRecord) {
+      await supabase.storage.from('patient-photos').remove([photoRecord.photo_url])
+    }
+
+    await supabase.from('patient_photos').delete().eq('id', photo.id)
+    setSessionPhotos(prev => prev.filter(p => p.id !== photo.id))
+    toast.success('Foto excluída.')
+  }
+
+  function getPhotoForType(photoType: string): PatientPhoto | undefined {
+    return sessionPhotos.find(p => p.photo_type === photoType)
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>, photoType: string) {
+    const file = e.target.files?.[0]
+    if (file) {
+      validateAndUploadPhoto(file, photoType)
+    }
+    // Reset input
+    e.target.value = ''
+  }
+
+  // ── AI Postural Analysis ──
+
+  async function handleRunAnalysis() {
+    if (!selectedSession) return
+
+    const photosAvailable = sessionPhotos.length
+    if (photosAvailable === 0) {
+      toast.error('Tire pelo menos uma foto postural antes de solicitar a análise.')
+      return
+    }
+
+    setAnalyzing(true)
+
+    try {
+      // Get signed URLs for all session photos
+      const photoUrls: Record<string, string> = {}
+      for (const photo of sessionPhotos) {
+        // Get original path from DB
+        const { data: record } = await supabase
+          .from('patient_photos')
+          .select('photo_url, photo_type')
+          .eq('id', photo.id)
+          .single()
+        if (record) {
+          const { data: signed } = await supabase.storage
+            .from('patient-photos')
+            .createSignedUrl(record.photo_url, 600)
+          if (signed?.signedUrl) {
+            photoUrls[record.photo_type] = signed.signedUrl
+          }
+        }
+      }
+
+      // Get patient data
+      const { data: patient } = await supabase
+        .from('patients')
+        .select('*')
+        .eq('id', patientId)
+        .single()
+
+      // Get exams
+      const { data: exams } = await supabase
+        .from('patient_exams')
+        .select('exam_description, ai_analysis')
+        .eq('patient_id', patientId)
+
+      // Get previous analysis (from any earlier session)
+      const { data: prevAnalysis } = await supabase
+        .from('posture_analyses')
+        .select('analysis_text, created_at')
+        .eq('patient_id', patientId)
+        .neq('session_a_id', selectedSession.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      const response = await fetch('/api/ai/analyze-posture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          photoUrls,
+          patientData: patient,
+          exams: exams || [],
+          previousAnalysis: prevAnalysis?.analysis_text || null,
+          sessionNumber: selectedSession.session_number,
+        }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json()
+        toast.error(err.error || 'Erro na análise postural.')
+        setAnalyzing(false)
+        return
+      }
+
+      const result = await response.json()
+
+      // Save analysis to DB
+      const { data: savedAnalysis, error } = await supabase
+        .from('posture_analyses')
+        .insert({
+          patient_id: patientId,
+          session_a_id: selectedSession.id,
+          session_b_id: prevAnalysis ? null : null, // Only session_a for single analysis
+          analysis_text: result.analysis,
+          analysis_type: result.type || 'single',
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error saving analysis:', error)
+        toast.error('Análise gerada mas erro ao salvar.')
+      } else {
+        setCurrentAnalysis(savedAnalysis)
+        toast.success('Análise postural concluída!')
+      }
+    } catch (err) {
+      console.error('Analysis error:', err)
+      toast.error('Erro ao gerar análise postural.')
+    }
+
+    setAnalyzing(false)
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center py-12">
@@ -266,7 +568,7 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
 
       {/* Session Detail Dialog */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>
               Sessao {selectedSession?.session_number}
@@ -292,6 +594,180 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
               </Button>
             </div>
 
+            {/* ── Postural Photos ── */}
+            <div className="space-y-3">
+              <h3 className="font-medium flex items-center gap-2">
+                <Camera className="h-4 w-4" />
+                Fotos Posturais
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Tire ou selecione fotos do paciente nos 4 ângulos. A IA validará automaticamente cada foto antes de aceitar.
+              </p>
+
+              {/* Validation error */}
+              {validationError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-red-800">
+                        Foto {PHOTO_TYPE_LABELS[validationError.type]} rejeitada
+                      </p>
+                      <p className="text-sm text-red-700 mt-1">{validationError.message}</p>
+                      {validationError.issues.length > 0 && (
+                        <ul className="mt-1 list-disc pl-4 text-xs text-red-600">
+                          {validationError.issues.map((issue, i) => (
+                            <li key={i}>{issue}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <button onClick={() => setValidationError(null)}>
+                      <X className="h-4 w-4 text-red-400" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Photo grid */}
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {PHOTO_TYPES.map(pt => {
+                  const photo = getPhotoForType(pt.value)
+                  const isValidating = validatingType === pt.value
+                  const isUploading = uploadingType === pt.value
+                  const isBusy = isValidating || isUploading
+
+                  return (
+                    <div key={pt.value} className="space-y-1.5">
+                      <p className="text-center text-xs font-medium text-muted-foreground">
+                        {pt.label}
+                      </p>
+                      <div className="relative aspect-[3/4] overflow-hidden rounded-lg border bg-gray-50">
+                        {photo ? (
+                          <>
+                            <img
+                              src={photo.photo_url}
+                              alt={pt.label}
+                              className="h-full w-full object-cover"
+                            />
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              className="absolute right-1 top-1 h-6 w-6"
+                              onClick={() => handleDeletePhoto(photo)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                            <Badge
+                              className="absolute bottom-1 left-1 bg-green-600 text-[10px]"
+                            >
+                              IA ✓
+                            </Badge>
+                          </>
+                        ) : (
+                          <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-2">
+                            {isBusy ? (
+                              <div className="flex flex-col items-center gap-1">
+                                <Loader2 className="h-6 w-6 animate-spin text-teal-600" />
+                                <span className="text-[10px] text-muted-foreground text-center">
+                                  {isValidating ? 'Validando com IA...' : 'Enviando...'}
+                                </span>
+                              </div>
+                            ) : (
+                              <>
+                                {/* Camera button */}
+                                <button
+                                  className="flex flex-col items-center gap-1 rounded-md border border-dashed border-teal-400 px-3 py-2 text-teal-600 transition-colors hover:bg-teal-50"
+                                  onClick={() => cameraInputRefs.current[pt.value]?.click()}
+                                >
+                                  <Camera className="h-5 w-5" />
+                                  <span className="text-[10px]">Câmera</span>
+                                </button>
+                                {/* Gallery button */}
+                                <button
+                                  className="flex flex-col items-center gap-1 rounded-md border border-dashed border-gray-300 px-3 py-1.5 text-muted-foreground transition-colors hover:bg-gray-100"
+                                  onClick={() => fileInputRefs.current[pt.value]?.click()}
+                                >
+                                  <Upload className="h-4 w-4" />
+                                  <span className="text-[10px]">Galeria</span>
+                                </button>
+                                {/* Hidden inputs */}
+                                <input
+                                  ref={el => { cameraInputRefs.current[pt.value] = el }}
+                                  type="file"
+                                  accept="image/*"
+                                  capture="environment"
+                                  className="hidden"
+                                  onChange={e => handleFileSelect(e, pt.value)}
+                                />
+                                <input
+                                  ref={el => { fileInputRefs.current[pt.value] = el }}
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={e => handleFileSelect(e, pt.value)}
+                                />
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* AI Analysis button */}
+              <div className="flex flex-col gap-2">
+                <Button
+                  className="bg-purple-600 hover:bg-purple-700 w-full"
+                  onClick={handleRunAnalysis}
+                  disabled={analyzing || sessionPhotos.length === 0}
+                >
+                  {analyzing ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Analisando postura com IA...
+                    </>
+                  ) : (
+                    <>
+                      <Brain className="mr-2 h-4 w-4" />
+                      {currentAnalysis ? 'Refazer Análise Postural com IA' : 'Gerar Análise Postural com IA'}
+                    </>
+                  )}
+                </Button>
+                {sessionPhotos.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    Tire pelo menos uma foto para habilitar a análise.
+                  </p>
+                )}
+                {sessionPhotos.length > 0 && sessionPhotos.length < 4 && (
+                  <p className="text-xs text-amber-600 text-center">
+                    {4 - sessionPhotos.length} foto(s) faltando. A análise será mais precisa com os 4 ângulos.
+                  </p>
+                )}
+              </div>
+
+              {/* AI Analysis result */}
+              {currentAnalysis && (
+                <div className="rounded-lg border border-purple-200 bg-purple-50 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Brain className="h-4 w-4 text-purple-700" />
+                    <h4 className="font-medium text-purple-900">Análise Postural IA</h4>
+                    <Badge variant="outline" className="text-[10px] border-purple-300 text-purple-700">
+                      {currentAnalysis.analysis_type === 'compare' ? 'Comparativa' : 'Individual'}
+                    </Badge>
+                    <span className="ml-auto text-xs text-purple-600">
+                      {new Date(currentAnalysis.created_at).toLocaleString('pt-BR')}
+                    </span>
+                  </div>
+                  <div className="prose prose-sm max-w-none text-purple-950 whitespace-pre-wrap">
+                    {currentAnalysis.analysis_text}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Discomfort Records */}
             <div className="space-y-3">
               <h3 className="font-medium">Registros de Desconforto</h3>
@@ -306,7 +782,8 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
                   </div>
                   <Button
                     variant="ghost"
-                    size="icon-xs"
+                    size="icon"
+                    className="h-6 w-6"
                     onClick={() => handleDeleteDiscomfort(record.id)}
                   >
                     <Trash2 className="h-3 w-3 text-red-500" />
@@ -363,7 +840,8 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
                   </div>
                   <Button
                     variant="ghost"
-                    size="icon-xs"
+                    size="icon"
+                    className="h-6 w-6"
                     onClick={() => handleDeleteClinicalNote(note.id)}
                   >
                     <Trash2 className="h-3 w-3 text-red-500" />
