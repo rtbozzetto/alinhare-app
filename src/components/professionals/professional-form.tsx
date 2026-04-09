@@ -24,6 +24,7 @@ export function ProfessionalForm({ professional }: ProfessionalFormProps) {
   const isEdit = !!professional
 
   const [saving, setSaving] = useState(false)
+  const [recoveryLink, setRecoveryLink] = useState<string | null>(null)
   const [form, setForm] = useState({
     full_name: professional?.full_name ?? '',
     email: professional?.email ?? '',
@@ -86,11 +87,14 @@ export function ProfessionalForm({ professional }: ProfessionalFormProps) {
               professionalId: data.id,
             }),
           })
+          const result = await res.json()
           if (!res.ok) {
-            const result = await res.json()
             toast.error(result.error || 'Erro ao criar usuario de acesso.')
           } else {
-            toast.success('Email enviado para o profissional definir a senha!')
+            if (result.recovery_link) {
+              setRecoveryLink(result.recovery_link)
+            }
+            toast.success('Acesso criado! Email enviado para definir a senha.')
           }
         } catch {
           toast.error('Erro ao criar usuario de acesso.')
@@ -99,12 +103,50 @@ export function ProfessionalForm({ professional }: ProfessionalFormProps) {
 
       setSaving(false)
       toast.success('Profissional criado com sucesso!')
-      router.push('/profissionais')
+      if (!recoveryLink) {
+        router.push('/profissionais')
+      }
     }
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {recoveryLink && (
+        <Card className="border-orange-300 bg-orange-50">
+          <CardContent className="pt-4 space-y-2">
+            <p className="text-sm font-medium text-orange-800">
+              Caso o email não chegue (verifique spam), envie este link ao profissional para definir a senha:
+            </p>
+            <div className="flex gap-2">
+              <Input
+                readOnly
+                value={recoveryLink}
+                className="text-xs bg-white"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(recoveryLink)
+                  toast.success('Link copiado!')
+                }}
+              >
+                Copiar
+              </Button>
+            </div>
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="text-orange-700 p-0"
+              onClick={() => router.push('/profissionais')}
+            >
+              Voltar para profissionais
+            </Button>
+          </CardContent>
+        </Card>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>Dados do Profissional</CardTitle>
