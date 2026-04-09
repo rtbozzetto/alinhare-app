@@ -77,6 +77,7 @@ export function ProfessionalForm({ professional }: ProfessionalFormProps) {
       }
 
       // Create auth user for the professional
+      let hasRecoveryLink = false
       if (data && form.email) {
         try {
           const res = await fetch('/api/professionals/create-user', {
@@ -93,17 +94,19 @@ export function ProfessionalForm({ professional }: ProfessionalFormProps) {
           } else {
             if (result.recovery_link) {
               setRecoveryLink(result.recovery_link)
+              hasRecoveryLink = true
             }
             toast.success('Acesso criado! Email enviado para definir a senha.')
           }
-        } catch {
+        } catch (err) {
+          console.error('Create user error:', err)
           toast.error('Erro ao criar usuario de acesso.')
         }
       }
 
       setSaving(false)
       toast.success('Profissional criado com sucesso!')
-      if (!recoveryLink) {
+      if (!hasRecoveryLink) {
         router.push('/profissionais')
       }
     }
