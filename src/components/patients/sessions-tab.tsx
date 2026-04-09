@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useTreatmentPlans } from '@/hooks/use-treatment-plans'
 import { createClient } from '@/lib/supabase/client'
-import { type TreatmentSession, type DiscomfortRecord, type ClinicalNote, type PatientPhoto, type PostureAnalysis, type Patient, type PatientExam } from '@/types/database'
+import { type TreatmentSession, type DiscomfortRecord, type ClinicalNote, type PatientPhoto, type PostureAnalysis } from '@/types/database'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,16 +17,9 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { BODY_REGIONS, PHOTO_TYPES } from '@/lib/constants'
 import { toast } from 'sonner'
-import { Check, Eye, Plus, Trash2, Camera, ImageIcon, Brain, Loader2, AlertTriangle, X, Upload, PartyPopper } from 'lucide-react'
+import { Check, Eye, Plus, Trash2, Camera, Brain, Loader2, AlertTriangle, X, Upload, PartyPopper } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SessionsTabProps {
@@ -51,10 +44,10 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
   const [discomfortRecords, setDiscomfortRecords] = useState<DiscomfortRecord[]>([])
   const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([])
 
-  // New discomfort form
-  const [newRegion, setNewRegion] = useState('')
-  const [newIntensity, setNewIntensity] = useState(5)
-  const [newDiscomfortNotes, setNewDiscomfortNotes] = useState('')
+  // Discomfort toggle map: region -> intensity
+  const [selectedRegions, setSelectedRegions] = useState<Record<string, number>>({})
+  const [customDiscomfort, setCustomDiscomfort] = useState('')
+  const [savingDiscomforts, setSavingDiscomforts] = useState(false)
 
   // New clinical note form
   const [newClinicalNote, setNewClinicalNote] = useState('')
@@ -91,12 +84,17 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
       .eq('session_id', session.id)
       .order('created_at')
 
+    // Build region -> intensity map
+    const regionMap: Record<string, number> = {}
+
     if (discomforts && discomforts.length > 0) {
       // Session already has its own records
       setDiscomfortRecords(discomforts)
+      for (const d of discomforts) {
+        regionMap[d.body_region] = d.pain_intensity
+      }
     } else {
       // Pre-fill from previous session or patient initial data
-      // 1. Try previous session (most recent completed session before this one)
       const allSessions = sessions
         .filter(s => s.plan_id === session.plan_id && s.session_number < session.session_number)
         .sort((a, b) => b.session_number - a.session_number)
@@ -109,17 +107,15 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
           .eq('session_id', prevSession.id)
           .order('created_at')
         if (prevDiscomforts && prevDiscomforts.length > 0) {
-          // Show previous records as reference (without IDs so they appear as "inherited")
-          setDiscomfortRecords(prevDiscomforts.map(d => ({
-            ...d,
-            id: `prev_${d.id}`, // mark as inherited
-          })))
+          setDiscomfortRecords([])
+          for (const d of prevDiscomforts) {
+            regionMap[d.body_region] = d.pain_intensity
+          }
           prefilled = true
           break
         }
       }
 
-      // 2. If no previous session data, use patient initial discomfort data
       if (!prefilled) {
         const { data: patient } = await supabase
           .from('patients')
@@ -127,21 +123,14 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
           .eq('id', patientId)
           .single()
         if (patient?.discomfort_regions?.length) {
-          const initialRecords = patient.discomfort_regions.map((region: string) => ({
-            id: `init_${region}`,
-            session_id: session.id,
-            patient_id: patientId,
-            body_region: region,
-            pain_intensity: patient.discomfort_intensities?.[region] ?? 5,
-            notes: 'Dados iniciais do paciente',
-            created_at: new Date().toISOString(),
-          })) as DiscomfortRecord[]
-          setDiscomfortRecords(initialRecords)
-        } else {
-          setDiscomfortRecords([])
+          for (const region of patient.discomfort_regions as string[]) {
+            regionMap[region] = patient.discomfort_intensities?.[region] ?? 5
+          }
         }
+        setDiscomfortRecords([])
       }
     }
+    setSelectedRegions(regionMap)
 
     // Load clinical notes
     const { data: notes } = await supabase
@@ -190,9 +179,8 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
     setSessionPhotos([])
     setCurrentAnalysis(null)
     setValidationError(null)
-    setNewRegion('')
-    setNewIntensity(5)
-    setNewDiscomfortNotes('')
+    setSelectedRegions({})
+    setCustomDiscomfort('')
     setNewClinicalNote('')
     loadSessionDetails(session)
     setDetailOpen(true)
@@ -217,38 +205,60 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
     }
   }
 
-  async function handleAddDiscomfort() {
-    if (!selectedSession || !newRegion) {
-      toast.error('Selecione uma regiao.')
-      return
-    }
-    const { data, error } = await supabase
-      .from('discomfort_records')
-      .insert({
-        session_id: selectedSession.id,
-        patient_id: patientId,
-        body_region: newRegion,
-        pain_intensity: newIntensity,
-        notes: newDiscomfortNotes || null,
-      })
-      .select()
-      .single()
-    if (error) {
-      toast.error('Erro ao adicionar registro.')
-    } else if (data) {
-      setDiscomfortRecords(prev => [...prev, data])
-      setNewRegion('')
-      setNewIntensity(5)
-      setNewDiscomfortNotes('')
-      toast.success('Registro adicionado!')
-    }
+  function toggleRegion(region: string) {
+    setSelectedRegions(prev => {
+      const next = { ...prev }
+      if (next[region] !== undefined) {
+        delete next[region]
+      } else {
+        next[region] = 5
+      }
+      return next
+    })
   }
 
-  async function handleDeleteDiscomfort(id: string) {
-    const { error } = await supabase.from('discomfort_records').delete().eq('id', id)
-    if (!error) {
-      setDiscomfortRecords(prev => prev.filter(d => d.id !== id))
+  function setRegionIntensity(region: string, value: number) {
+    setSelectedRegions(prev => ({ ...prev, [region]: value }))
+  }
+
+  function addCustomRegion() {
+    const region = customDiscomfort.trim()
+    if (!region) return
+    if (selectedRegions[region] !== undefined) {
+      toast.error('Região já selecionada.')
+      return
     }
+    setSelectedRegions(prev => ({ ...prev, [region]: 5 }))
+    setCustomDiscomfort('')
+  }
+
+  async function handleSaveDiscomforts() {
+    if (!selectedSession) return
+    setSavingDiscomforts(true)
+
+    // Delete all existing records for this session
+    await supabase.from('discomfort_records').delete().eq('session_id', selectedSession.id)
+
+    // Insert current selections
+    const regions = Object.entries(selectedRegions)
+    if (regions.length > 0) {
+      const { error } = await supabase.from('discomfort_records').insert(
+        regions.map(([region, intensity]) => ({
+          session_id: selectedSession.id,
+          patient_id: patientId,
+          body_region: region,
+          pain_intensity: intensity,
+        }))
+      )
+      if (error) {
+        toast.error('Erro ao salvar desconfortos.')
+        setSavingDiscomforts(false)
+        return
+      }
+    }
+
+    setSavingDiscomforts(false)
+    toast.success('Desconfortos salvos!')
   }
 
   async function handleAddClinicalNote() {
@@ -844,79 +854,112 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
 
             {/* Discomfort Records */}
             <div className="space-y-3">
-              <h3 className="font-medium">Registros de Desconforto</h3>
-              {discomfortRecords.some(r => r.id.startsWith('prev_') || r.id.startsWith('init_')) && (
-                <p className="text-xs text-amber-600 bg-amber-50 rounded-md px-3 py-1.5">
-                  Dados pré-preenchidos do estado anterior. Edite as intensidades conforme o paciente relatar e adicione/remova regiões.
-                </p>
-              )}
-              {discomfortRecords.map(record => {
-                const isInherited = record.id.startsWith('prev_') || record.id.startsWith('init_')
-                return (
-                  <div key={record.id} className={cn(
-                    "flex items-center justify-between rounded-lg border p-2",
-                    isInherited && "border-amber-200 bg-amber-50/50"
-                  )}>
-                    <div className="text-sm">
-                      <span className="font-medium">{record.body_region}</span>
-                      <span className="ml-2 text-muted-foreground">
-                        Intensidade: {record.pain_intensity}/10
-                      </span>
-                      {isInherited && (
-                        <Badge variant="outline" className="ml-2 text-[10px] border-amber-300 text-amber-700">
-                          Estado anterior
-                        </Badge>
-                      )}
-                      {record.notes && <p className="text-xs text-muted-foreground">{record.notes}</p>}
-                    </div>
-                    {!isInherited && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => handleDeleteDiscomfort(record.id)}
-                      >
-                        <Trash2 className="h-3 w-3 text-red-500" />
-                      </Button>
-                    )}
-                  </div>
-                )
-              })}
+              <h3 className="font-medium">Desconfortos</h3>
 
-              {/* Add new discomfort */}
-              <div className="grid gap-2 rounded-lg border p-3 md:grid-cols-4">
-                <Select value={newRegion} onValueChange={(value: string) => setNewRegion(value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Regiao" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {BODY_REGIONS.map(r => (
-                      <SelectItem key={r} value={r}>{r}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Toggle buttons for body regions */}
+              <div className="flex flex-wrap gap-1.5">
+                {BODY_REGIONS.map(region => {
+                  const isSelected = selectedRegions[region] !== undefined
+                  return (
+                    <Button
+                      key={region}
+                      type="button"
+                      variant={isSelected ? 'default' : 'outline'}
+                      size="sm"
+                      className={cn(
+                        'h-7 text-xs px-2.5',
+                        isSelected && 'bg-teal-600 hover:bg-teal-700'
+                      )}
+                      onClick={() => toggleRegion(region)}
+                    >
+                      {region}
+                    </Button>
+                  )
+                })}
+                {/* Show custom regions not in BODY_REGIONS */}
+                {Object.keys(selectedRegions)
+                  .filter(r => !BODY_REGIONS.includes(r as typeof BODY_REGIONS[number]))
+                  .map(region => (
+                    <Button
+                      key={region}
+                      type="button"
+                      variant="default"
+                      size="sm"
+                      className="h-7 text-xs px-2.5 bg-teal-600 hover:bg-teal-700"
+                      onClick={() => toggleRegion(region)}
+                    >
+                      {region}
+                    </Button>
+                  ))}
+              </div>
+
+              {/* Custom region input */}
+              <div className="flex gap-2">
                 <Input
-                  type="number"
-                  min={0}
-                  max={10}
-                  value={newIntensity}
-                  onChange={e => setNewIntensity(parseInt(e.target.value) || 0)}
-                  placeholder="Intensidade"
-                />
-                <Input
-                  value={newDiscomfortNotes}
-                  onChange={e => setNewDiscomfortNotes(e.target.value)}
-                  placeholder="Notas (opcional)"
+                  value={customDiscomfort}
+                  onChange={e => setCustomDiscomfort(e.target.value)}
+                  placeholder="Outro desconforto..."
+                  className="text-sm"
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      addCustomRegion()
+                    }
+                  }}
                 />
                 <Button
+                  type="button"
+                  variant="outline"
                   size="sm"
-                  className="bg-teal-600 hover:bg-teal-700"
-                  onClick={handleAddDiscomfort}
+                  onClick={addCustomRegion}
+                  disabled={!customDiscomfort.trim()}
                 >
                   <Plus className="mr-1 h-3 w-3" />
                   Adicionar
                 </Button>
               </div>
+
+              {/* Intensity sliders for selected regions */}
+              {Object.keys(selectedRegions).length > 0 && (
+                <div className="space-y-2">
+                  {Object.entries(selectedRegions).map(([region, intensity]) => (
+                    <div key={region} className="flex items-center gap-2">
+                      <span className="w-24 text-sm truncate shrink-0">{region}</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={10}
+                        value={intensity}
+                        onChange={e => setRegionIntensity(region, parseInt(e.target.value))}
+                        className="flex-1 accent-teal-600"
+                      />
+                      <span className={cn(
+                        'w-6 text-center text-sm font-bold',
+                        intensity <= 3 ? 'text-green-600' : intensity <= 6 ? 'text-amber-600' : 'text-red-600'
+                      )}>
+                        {intensity}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleRegion(region)}
+                        className="text-muted-foreground hover:text-red-500 transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Save discomforts button */}
+              <Button
+                size="sm"
+                className="bg-teal-600 hover:bg-teal-700"
+                onClick={handleSaveDiscomforts}
+                disabled={savingDiscomforts}
+              >
+                {savingDiscomforts ? 'Salvando...' : 'Salvar desconfortos'}
+              </Button>
             </div>
 
             {/* Clinical Notes */}
