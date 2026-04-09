@@ -252,7 +252,10 @@ export function AppointmentFormDialog({
       const { error } = await updateAppointment(appointment.id, payload)
       setSaving(false)
       if (error) {
-        toast.error('Erro ao atualizar agendamento.')
+        const msg = error.message?.includes('idx_appointments_no_conflict')
+          ? 'Já existe um agendamento para este profissional nesta data e horário.'
+          : `Erro ao atualizar agendamento: ${error.message || 'erro desconhecido'}`
+        toast.error(msg)
       } else {
         toast.success('Agendamento atualizado!')
         onClose()
@@ -261,7 +264,10 @@ export function AppointmentFormDialog({
       const { error } = await createAppointment(payload)
       setSaving(false)
       if (error) {
-        toast.error('Erro ao criar agendamento.')
+        const msg = error.message?.includes('idx_appointments_no_conflict')
+          ? 'Já existe um agendamento para este profissional nesta data e horário.'
+          : `Erro ao criar agendamento: ${error.message || 'erro desconhecido'}`
+        toast.error(msg)
       } else {
         toast.success('Agendamento criado!')
         onClose()

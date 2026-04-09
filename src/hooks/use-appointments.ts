@@ -43,19 +43,21 @@ export function useAppointments() {
       .insert(appointment)
       .select('*, patient:patients(full_name), professional:professionals(id, full_name)')
       .single()
-    if (!error && data) {
-      setAppointments(prev => [...prev, data as Appointment])
-      // Create notification
-      await supabase.from('notifications').insert({
-        recipient_professional_id: appointment.professional_id,
-        recipient_admin: true,
-        title: 'Novo agendamento',
-        message: `Agendamento criado para ${(data as any).patient?.full_name || 'paciente'}`,
-        type: 'appointment',
-        related_appointment_id: data.id,
-      })
+    if (error) {
+      console.error('Appointment create error:', error)
+      return { data: null, error }
     }
-    return { data, error }
+    setAppointments(prev => [...prev, data as Appointment])
+    // Create notification (non-blocking)
+    supabase.from('notifications').insert({
+      recipient_professional_id: appointment.professional_id,
+      recipient_admin: true,
+      title: 'Novo agendamento',
+      message: `Agendamento criado para ${(data as any).patient?.full_name || 'paciente'}`,
+      type: 'appointment',
+      related_appointment_id: data.id,
+    }).then(() => {})
+    return { data, error: null }
   }
 
   const updateAppointment = async (id: string, updates: Partial<Appointment>) => {

@@ -26,10 +26,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { PAYMENT_STATUSES, PAYMENT_METHODS, LEAD_SOURCES } from '@/lib/constants'
+import { PAYMENT_STATUSES, PAYMENT_METHODS, LEAD_SOURCES, SCHEDULE } from '@/lib/constants'
 import { formatCurrency, calculateCommission, applyCreditCardFee } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { Plus, Trash2, Pencil } from 'lucide-react'
+import { Plus, Trash2, Pencil, CalendarPlus, X } from 'lucide-react'
+import { addDays, format, startOfWeek, nextDay } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 const PLAN_TYPE_LABELS: Record<string, string> = {
   treatment: 'Tratamento',
@@ -51,6 +54,14 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editingPlan, setEditingPlan] = useState<TreatmentPlan | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // Batch scheduling state
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false)
+  const [schedulingPlan, setSchedulingPlan] = useState<TreatmentPlan | null>(null)
+  const [scheduleDays, setScheduleDays] = useState<Record<number, string>>({}) // dayOfWeek -> time
+  const [scheduleStartDate, setScheduleStartDate] = useState(new Date().toISOString().split('T')[0])
+  const [schedulePreview, setSchedulePreview] = useState<Array<{ date: string; time: string; label: string }>>([])
+  const [savingSchedule, setSavingSchedule] = useState(false)
 
   const [form, setForm] = useState({
     professional_id: professionalId ?? '',
@@ -347,6 +358,146 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
     }
   }
 
+  // ── Batch Scheduling ──
+
+  const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+
+  function openScheduleDialog(plan: TreatmentPlan) {
+    setSchedulingPlan(plan)
+    setScheduleDays({})
+    setScheduleStartDate(new Date().toISOString().split('T')[0])
+    setSchedulePreview([])
+    setScheduleDialogOpen(true)
+  }
+
+  function toggleScheduleDay(day: number) {
+    setScheduleDays(prev => {
+      const next = { ...prev }
+      if (next[day] !== undefined) {
+        delete next[day]
+      } else {
+        next[day] = '10:00'
+      }
+      return next
+    })
+  }
+
+  function setScheduleTime(day: number, time: string) {
+    setScheduleDays(prev => ({ ...prev, [day]: time }))
+  }
+
+  function generateSchedulePreview() {
+    if (!schedulingPlan) return
+    const planSessions = sessions.filter(s => s.plan_id === schedulingPlan.id)
+    const pendingSessions = planSessions.filter(s => !s.completed).length
+    const sessionsToSchedule = pendingSessions || schedulingPlan.total_sessions
+
+    const selectedDays = Object.entries(scheduleDays)
+      .map(([d, t]) => ({ day: parseInt(d), time: t }))
+      .sort((a, b) => a.day - b.day)
+
+    if (selectedDays.length === 0) {
+      toast.error('Selecione pelo menos um dia da semana.')
+      return
+    }
+
+    const preview: Array<{ date: string; time: string; label: string }> = []
+    const start = new Date(scheduleStartDate + 'T12:00:00')
+    let currentDate = start
+    let count = 0
+
+    // Generate dates cycling through selected days
+    for (let week = 0; count < sessionsToSchedule && week < 52; week++) {
+      for (const { day, time } of selectedDays) {
+        if (count >= sessionsToSchedule) break
+        // Find the next occurrence of this day of week from start
+        let target: Date
+        if (week === 0) {
+          const startDay = start.getDay()
+          const diff = day >= startDay ? day - startDay : 7 - startDay + day
+          target = addDays(start, diff)
+        } else {
+          const weekStart = addDays(start, week * 7)
+          const wDay = weekStart.getDay()
+          const diff = day >= wDay ? day - wDay : 7 - wDay + day
+          target = addDays(weekStart, diff)
+        }
+        if (target >= start) {
+          preview.push({
+            date: format(target, 'yyyy-MM-dd'),
+            time,
+            label: format(target, "EEE, dd/MM", { locale: ptBR }),
+          })
+          count++
+        }
+      }
+    }
+
+    // Sort by date
+    preview.sort((a, b) => a.date.localeCompare(b.date))
+    setSchedulePreview(preview)
+  }
+
+  function removeFromPreview(index: number) {
+    setSchedulePreview(prev => prev.filter((_, i) => i !== index))
+  }
+
+  function updatePreviewTime(index: number, time: string) {
+    setSchedulePreview(prev => prev.map((item, i) => i === index ? { ...item, time } : item))
+  }
+
+  async function handleCreateBatchAppointments() {
+    if (!schedulingPlan || schedulePreview.length === 0) return
+    setSavingSchedule(true)
+
+    const supabase = createClient()
+    const typeMap: Record<string, string> = {
+      treatment: 'tratamento',
+      maintenance: 'manutencao',
+      avaliacao: 'avaliacao',
+    }
+
+    let created = 0
+    let errors = 0
+
+    for (const item of schedulePreview) {
+      const { error } = await supabase.from('appointments').insert({
+        patient_id: patientId,
+        professional_id: schedulingPlan.professional_id,
+        appointment_date: item.date,
+        appointment_time: item.time,
+        appointment_type: typeMap[schedulingPlan.plan_type] || 'tratamento',
+        status: 'agendada',
+        payment_status: 'pago_pacote',
+        payment_method: schedulingPlan.payment_method,
+        custom_price: 0,
+        discount_amount: 0,
+        discount_type: 'value',
+        final_paid_amount: 0,
+        lead_source: schedulingPlan.lead_source,
+        lead_professional_id: schedulingPlan.lead_professional_id,
+        commission_percentage: 0,
+        commission_amount: 0,
+        clinic_amount: 0,
+      })
+      if (error) {
+        console.error('Batch appointment error:', error)
+        errors++
+      } else {
+        created++
+      }
+    }
+
+    setSavingSchedule(false)
+
+    if (errors > 0) {
+      toast.error(`${errors} agendamento(s) com erro (conflito de horário?). ${created} criado(s).`)
+    } else {
+      toast.success(`${created} agendamento(s) criado(s) com sucesso!`)
+    }
+    setScheduleDialogOpen(false)
+  }
+
   async function handleDeletePlan(planId: string) {
     const { error } = await deletePlan(planId)
     if (error) {
@@ -411,11 +562,18 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
                       {plan.total_sessions} sessoes - {formatCurrency(plan.price)}
                       {plan.discount_amount > 0 && ` (desc: ${formatCurrency(plan.discount_amount)})`}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      Liquido: {formatCurrency(plan.final_paid_amount)} | Repasse: {formatCurrency(plan.commission_amount)} | Clinica: {formatCurrency(plan.clinic_amount)}
-                    </p>
                   </div>
                   <div className="flex items-center gap-1">
+                    {plan.active && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openScheduleDialog(plan)}
+                        title="Agendar sessões"
+                      >
+                        <CalendarPlus className="h-4 w-4 text-teal-600" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -982,6 +1140,155 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Batch Schedule Dialog */}
+      <Dialog open={scheduleDialogOpen} onOpenChange={setScheduleDialogOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[95vw] sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              Agendar Sessões — {schedulingPlan?.plan_name}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Selecione os dias da semana e horários. O sistema gerará os agendamentos automaticamente para todas as sessões pendentes do plano.
+            </p>
+
+            {/* Day selection */}
+            <div className="space-y-2">
+              <Label>Dias da semana</Label>
+              <div className="flex flex-wrap gap-2">
+                {[1, 2, 3, 4, 5, 6, 0].map(day => {
+                  const isSelected = scheduleDays[day] !== undefined
+                  return (
+                    <Button
+                      key={day}
+                      type="button"
+                      variant={isSelected ? 'default' : 'outline'}
+                      size="sm"
+                      className={isSelected ? 'bg-teal-600 hover:bg-teal-700' : ''}
+                      onClick={() => toggleScheduleDay(day)}
+                    >
+                      {DAY_LABELS[day]}
+                    </Button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Time for each selected day */}
+            {Object.entries(scheduleDays).length > 0 && (
+              <div className="space-y-2">
+                <Label>Horário por dia</Label>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {Object.entries(scheduleDays)
+                    .sort(([a], [b]) => parseInt(a) - parseInt(b))
+                    .map(([dayStr, time]) => {
+                      const day = parseInt(dayStr)
+                      return (
+                        <div key={day} className="flex items-center gap-2 rounded-md border p-2">
+                          <span className="text-sm font-medium w-10">{DAY_LABELS[day]}</span>
+                          <Select
+                            value={time}
+                            onValueChange={(value: string) => setScheduleTime(day, value)}
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Array.from({ length: (SCHEDULE.END_HOUR - SCHEDULE.START_HOUR) * 2 }, (_, i) => {
+                                const h = SCHEDULE.START_HOUR + Math.floor(i / 2)
+                                const m = i % 2 === 0 ? '00' : '30'
+                                const t = `${String(h).padStart(2, '0')}:${m}`
+                                return <SelectItem key={t} value={t}>{t}</SelectItem>
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )
+                    })}
+                </div>
+              </div>
+            )}
+
+            {/* Start date */}
+            <div className="space-y-2">
+              <Label>A partir de</Label>
+              <Input
+                type="date"
+                value={scheduleStartDate}
+                onChange={e => setScheduleStartDate(e.target.value)}
+              />
+            </div>
+
+            {/* Generate preview button */}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={generateSchedulePreview}
+              disabled={Object.keys(scheduleDays).length === 0}
+            >
+              Gerar Preview dos Agendamentos
+            </Button>
+
+            {/* Preview list */}
+            {schedulePreview.length > 0 && (
+              <div className="space-y-2">
+                <Label>Preview ({schedulePreview.length} agendamentos)</Label>
+                <div className="max-h-60 overflow-y-auto rounded-lg border divide-y">
+                  {schedulePreview.map((item, i) => (
+                    <div key={i} className="flex items-center gap-2 px-3 py-2">
+                      <span className="text-sm font-medium w-8 text-muted-foreground">{i + 1}.</span>
+                      <span className="text-sm flex-1 capitalize">{item.label}</span>
+                      <Select
+                        value={item.time}
+                        onValueChange={(value: string) => updatePreviewTime(i, value)}
+                      >
+                        <SelectTrigger className="w-24">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: (SCHEDULE.END_HOUR - SCHEDULE.START_HOUR) * 2 }, (_, j) => {
+                            const h = SCHEDULE.START_HOUR + Math.floor(j / 2)
+                            const m = j % 2 === 0 ? '00' : '30'
+                            const t = `${String(h).padStart(2, '0')}:${m}`
+                            return <SelectItem key={t} value={t}>{t}</SelectItem>
+                          })}
+                        </SelectContent>
+                      </Select>
+                      <button
+                        type="button"
+                        onClick={() => removeFromPreview(i)}
+                        className="text-muted-foreground hover:text-red-500"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScheduleDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              className="bg-teal-600 hover:bg-teal-700"
+              onClick={handleCreateBatchAppointments}
+              disabled={savingSchedule || schedulePreview.length === 0}
+            >
+              <CalendarPlus className="mr-2 h-4 w-4" />
+              {savingSchedule
+                ? 'Criando...'
+                : `Criar ${schedulePreview.length} Agendamento${schedulePreview.length !== 1 ? 's' : ''}`}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
