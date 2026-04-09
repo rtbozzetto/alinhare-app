@@ -71,15 +71,21 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
   })
 
   const [editForm, setEditForm] = useState({
-    plan_name: '',
+    professional_id: '',
     plan_type: 'treatment' as TreatmentPlan['plan_type'],
+    protocol: 'janaina' as ProtocolKey,
+    selected_price_id: '',
+    plan_name: '',
     total_sessions: 1,
+    start_date: '',
+    notes: '',
+    price: 0,
     payment_status: 'nao_pago' as TreatmentPlan['payment_status'],
     payment_method: 'pix' as TreatmentPlan['payment_method'],
-    price: 0,
     discount_amount: 0,
     discount_type: 'value' as TreatmentPlan['discount_type'],
-    notes: '',
+    lead_source: 'clinica' as TreatmentPlan['lead_source'],
+    lead_professional_id: null as string | null,
     active: true,
   })
 
@@ -163,15 +169,21 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
   function openEditDialog(plan: TreatmentPlan) {
     setEditingPlan(plan)
     setEditForm({
-      plan_name: plan.plan_name,
+      professional_id: plan.professional_id,
       plan_type: plan.plan_type,
+      protocol: (plan as any).protocol ?? 'janaina',
+      selected_price_id: '',
+      plan_name: plan.plan_name,
       total_sessions: plan.total_sessions,
+      start_date: plan.start_date ?? '',
+      notes: plan.notes ?? '',
+      price: plan.price,
       payment_status: plan.payment_status,
       payment_method: plan.payment_method,
-      price: plan.price,
       discount_amount: plan.discount_amount,
       discount_type: plan.discount_type,
-      notes: plan.notes ?? '',
+      lead_source: plan.lead_source,
+      lead_professional_id: plan.lead_professional_id,
       active: plan.active,
     })
     setEditDialogOpen(true)
@@ -221,26 +233,70 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
     }
   }
 
+  function updateEditField(field: string, value: unknown) {
+    setEditForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  function handleEditProtocolChange(proto: string) {
+    updateEditField('protocol', proto)
+    updateEditField('selected_price_id', '')
+  }
+
+  function handleEditPlanTypeChange(type: string) {
+    updateEditField('plan_type', type)
+    updateEditField('selected_price_id', '')
+    if (type === 'avaliacao') {
+      const evalPrice = getEvaluationPrice(editForm.protocol)
+      updateEditField('plan_name', 'Avaliação')
+      updateEditField('total_sessions', 1)
+      updateEditField('price', evalPrice)
+    }
+  }
+
+  function handleEditPriceOptionChange(priceId: string) {
+    updateEditField('selected_price_id', priceId)
+    const planType = editForm.plan_type === 'avaliacao' ? 'treatment' : editForm.plan_type as 'treatment' | 'maintenance'
+    const options = getPlanOptions(editForm.protocol, planType)
+    const option = options.find(o => o.id === priceId)
+    if (option) {
+      updateEditField('plan_name', option.plan_name)
+      updateEditField('total_sessions', option.sessions)
+      updateEditField('price', option.price)
+    }
+  }
+
+  // Edit form computed values
+  const editDiscountValue = editForm.discount_type === 'percent'
+    ? (editForm.price * editForm.discount_amount) / 100
+    : editForm.discount_amount
+  const editAfterDiscount = Math.max(0, editForm.price - editDiscountValue)
+  const editFinalAmount = editForm.payment_method === 'cartao' ? applyCreditCardFee(editAfterDiscount) : editAfterDiscount
+  const editProfName = activeProfessionals.find(p => p.id === editForm.professional_id)?.full_name
+  const editCommission = calculateCommission(editFinalAmount, editForm.lead_source, editProfName)
+
   async function handleEditSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!editingPlan) return
 
-    setSaving(true)
+    if (!editForm.professional_id) {
+      toast.error('Selecione um profissional.')
+      return
+    }
+    if (!editForm.plan_name.trim()) {
+      toast.error('Selecione um plano.')
+      return
+    }
 
-    const editDiscountValue = editForm.discount_type === 'percent'
-      ? (editForm.price * editForm.discount_amount) / 100
-      : editForm.discount_amount
-    const editAfterDiscount = Math.max(0, editForm.price - editDiscountValue)
-    const editFinalAmount = editForm.payment_method === 'cartao' ? applyCreditCardFee(editAfterDiscount) : editAfterDiscount
-    const editProfName = activeProfessionals.find(p => p.id === editingPlan.professional_id)?.full_name
-    const editCommission = calculateCommission(editFinalAmount, editingPlan.lead_source, editProfName)
+    setSaving(true)
 
     const needsMoreSessions = editForm.total_sessions > editingPlan.total_sessions
 
     const { error } = await updatePlan(editingPlan.id, {
+      professional_id: editForm.professional_id,
       plan_name: editForm.plan_name,
       plan_type: editForm.plan_type,
       total_sessions: editForm.total_sessions,
+      start_date: editForm.start_date || undefined,
       payment_status: editForm.payment_status,
       payment_method: editForm.payment_method,
       price: editForm.price,
@@ -248,6 +304,8 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
       discount_type: editForm.discount_type,
       notes: editForm.notes || null,
       active: editForm.active,
+      lead_source: editForm.lead_source,
+      lead_professional_id: editForm.lead_professional_id,
       final_paid_amount: editFinalAmount,
       commission_percentage: editCommission.professionalPercent,
       commission_amount: editCommission.professionalAmount,
@@ -259,17 +317,20 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
       const existingCount = editingPlan.total_sessions
+      const startDate = editForm.start_date ? new Date(editForm.start_date + 'T12:00:00') : new Date()
       const newSessions = Array.from(
         { length: editForm.total_sessions - existingCount },
-        (_, i) => ({
-          plan_id: editingPlan.id,
-          patient_id: patientId,
-          professional_id: editingPlan.professional_id,
-          session_number: existingCount + i + 1,
-          session_date: new Date(
-            Date.now() + (existingCount + i) * 7 * 86400000
-          ).toISOString().split('T')[0],
-        })
+        (_, i) => {
+          const sessionDate = new Date(startDate)
+          sessionDate.setDate(sessionDate.getDate() + (existingCount + i) * 7)
+          return {
+            plan_id: editingPlan.id,
+            patient_id: patientId,
+            professional_id: editForm.professional_id,
+            session_number: existingCount + i + 1,
+            session_date: sessionDate.toISOString().split('T')[0],
+          }
+        }
       )
       await supabase.from('treatment_sessions').insert(newSessions)
     }
@@ -643,26 +704,51 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
 
       {/* Edit Plan Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[95vw] sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Editar Plano</DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleEditSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Nome do Plano</Label>
-              <Input
-                value={editForm.plan_name}
-                onChange={e => setEditForm(prev => ({ ...prev, plan_name: e.target.value }))}
-              />
-            </div>
+            <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Profissional *</Label>
+                <Select
+                  value={editForm.professional_id}
+                  onValueChange={(value: string) => updateEditField('professional_id', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activeProfessionals.map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Protocolo</Label>
+                <Select
+                  value={editForm.protocol}
+                  onValueChange={(value: string) => handleEditProtocolChange(value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="janaina">{grouped.janaina.label}</SelectItem>
+                    <SelectItem value="quiropraxistas">{grouped.quiropraxistas.label}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="space-y-2">
                 <Label>Tipo</Label>
                 <Select
                   value={editForm.plan_type}
-                  onValueChange={(value: string) => setEditForm(prev => ({ ...prev, plan_type: value as TreatmentPlan['plan_type'] }))}
+                  onValueChange={(value: string) => handleEditPlanTypeChange(value)}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -675,13 +761,44 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
                 </Select>
               </div>
 
+              {editForm.plan_type !== 'avaliacao' && (
+                <div className="space-y-2">
+                  <Label>Plano</Label>
+                  <Select
+                    value={editForm.selected_price_id}
+                    onValueChange={(value: string) => handleEditPriceOptionChange(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Alterar plano..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getPlanOptions(editForm.protocol, editForm.plan_type as 'treatment' | 'maintenance').map(opt => (
+                        <SelectItem key={opt.id} value={opt.id}>
+                          {opt.plan_name} - {opt.sessions} sess. - {formatCurrency(opt.price)}
+                          {opt.recommended ? ' (Recomendado)' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <div className="space-y-2">
-                <Label>Total de Sessões</Label>
+                <Label>Data de inicio</Label>
+                <Input
+                  type="date"
+                  value={editForm.start_date}
+                  onChange={e => updateEditField('start_date', e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Sessoes</Label>
                 <Input
                   type="number"
                   min={editingPlan?.total_sessions ?? 1}
                   value={editForm.total_sessions}
-                  onChange={e => setEditForm(prev => ({ ...prev, total_sessions: parseInt(e.target.value) || 1 }))}
+                  onChange={e => updateEditField('total_sessions', parseInt(e.target.value) || 1)}
                 />
                 {editForm.total_sessions > (editingPlan?.total_sessions ?? 0) && (
                   <p className="text-xs text-amber-600">
@@ -691,55 +808,10 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
               </div>
 
               <div className="space-y-2">
-                <Label>Status Pagamento</Label>
-                <Select
-                  value={editForm.payment_status}
-                  onValueChange={(value: string) => setEditForm(prev => ({ ...prev, payment_status: value as TreatmentPlan['payment_status'] }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PAYMENT_STATUSES.map(s => (
-                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Método Pagamento</Label>
-                <Select
-                  value={editForm.payment_method}
-                  onValueChange={(value: string) => setEditForm(prev => ({ ...prev, payment_method: value as TreatmentPlan['payment_method'] }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PAYMENT_METHODS.map(m => (
-                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Valor (R$)</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={editForm.price}
-                  onChange={e => setEditForm(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Status</Label>
+                <Label>Status do Plano</Label>
                 <Select
                   value={editForm.active ? 'true' : 'false'}
-                  onValueChange={(value: string) => setEditForm(prev => ({ ...prev, active: value === 'true' }))}
+                  onValueChange={(value: string) => updateEditField('active', value === 'true')}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -753,12 +825,155 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
             </div>
 
             <div className="space-y-2">
-              <Label>Observações</Label>
+              <Label>Observacoes</Label>
               <Textarea
                 value={editForm.notes}
-                onChange={e => setEditForm(prev => ({ ...prev, notes: e.target.value }))}
+                onChange={e => updateEditField('notes', e.target.value)}
                 rows={2}
               />
+            </div>
+
+            {/* Payment */}
+            <div className="space-y-4 rounded-lg border p-4">
+              <h3 className="font-medium">Pagamento</h3>
+              <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select
+                    value={editForm.payment_status}
+                    onValueChange={(value: string) => updateEditField('payment_status', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_STATUSES.map(s => (
+                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Metodo</Label>
+                  <Select
+                    value={editForm.payment_method}
+                    onValueChange={(value: string) => updateEditField('payment_method', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_METHODS.map(m => (
+                        <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Valor (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editForm.price}
+                    onChange={e => updateEditField('price', parseFloat(e.target.value) || 0)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Desconto ({editForm.discount_type === 'percent' ? '%' : 'R$'})</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editForm.discount_amount}
+                      onChange={e => updateEditField('discount_amount', parseFloat(e.target.value) || 0)}
+                      className="flex-1"
+                    />
+                    <Select
+                      value={editForm.discount_type}
+                      onValueChange={(value: string) => updateEditField('discount_type', value)}
+                    >
+                      <SelectTrigger className="w-24">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="value">R$</SelectItem>
+                        <SelectItem value="percent">%</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Origem do Lead</Label>
+                  <Select
+                    value={editForm.lead_source}
+                    onValueChange={(value: string) => updateEditField('lead_source', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LEAD_SOURCES.map(l => (
+                        <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {editForm.lead_source === 'profissional' && (
+                  <div className="space-y-2">
+                    <Label>Profissional responsavel</Label>
+                    <Select
+                      value={editForm.lead_professional_id ?? ''}
+                      onValueChange={(value: string) => updateEditField('lead_professional_id', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {activeProfessionals.map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              {/* Summary */}
+              <div className="mt-3 rounded-md bg-gray-50 p-3 text-sm">
+                <div className="flex justify-between">
+                  <span>Valor bruto:</span>
+                  <span>{formatCurrency(editForm.price)}</span>
+                </div>
+                <div className="flex justify-between text-red-600">
+                  <span>Desconto:</span>
+                  <span>- {formatCurrency(editDiscountValue)}</span>
+                </div>
+                {editForm.payment_method === 'cartao' && (
+                  <div className="flex justify-between text-orange-600">
+                    <span>Taxa cartao (5,99%):</span>
+                    <span>- {formatCurrency(editAfterDiscount - editFinalAmount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-medium text-teal-600">
+                  <span>Valor liquido:</span>
+                  <span>{formatCurrency(editFinalAmount)}</span>
+                </div>
+                <div className="mt-1 border-t pt-1 flex justify-between">
+                  <span>Repasse ({editCommission.professionalPercent}%):</span>
+                  <span>{formatCurrency(editCommission.professionalAmount)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Clinica ({editCommission.clinicPercent}%):</span>
+                  <span>{formatCurrency(editCommission.clinicAmount)}</span>
+                </div>
+              </div>
             </div>
 
             <DialogFooter>
