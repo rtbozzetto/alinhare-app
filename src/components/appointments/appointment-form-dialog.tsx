@@ -257,6 +257,13 @@ export function AppointmentFormDialog({
       return
     }
 
+    // Check past date
+    const today = new Date().toISOString().split('T')[0]
+    if (form.appointment_date < today) {
+      toast.error('Não é possível agendar em uma data que já passou.')
+      return
+    }
+
     // Check for conflicts (skip if user already confirmed)
     if (!conflictConfirmed) {
       const conflict = await checkConflict()

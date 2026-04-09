@@ -217,6 +217,14 @@ export function BatchScheduleDialog({
 
   async function handleCreate() {
     if (!effectivePlan || !effectivePatientId || preview.length === 0) return
+
+    const today = new Date().toISOString().split('T')[0]
+    const pastDates = preview.filter(i => i.date < today)
+    if (pastDates.length > 0) {
+      toast.error('Remova as datas que já passaram antes de criar.')
+      return
+    }
+
     setSaving(true)
 
     const typeMap: Record<string, string> = {
@@ -428,11 +436,14 @@ export function BatchScheduleDialog({
                     {preview.map((item, i) => (
                       <div
                         key={i}
-                        className={`flex items-center gap-2 px-3 py-2 ${item.conflict ? 'bg-orange-50' : ''}`}
+                        className={`flex items-center gap-2 px-3 py-2 ${item.date < new Date().toISOString().split('T')[0] ? 'bg-red-50' : item.conflict ? 'bg-orange-50' : ''}`}
                       >
                         <span className="text-sm font-medium w-8 text-muted-foreground">{i + 1}.</span>
                         <div className="flex-1 min-w-0">
                           <span className="text-sm capitalize">{item.label}</span>
+                          {item.date < new Date().toISOString().split('T')[0] && (
+                            <p className="text-xs text-red-600">Data passada</p>
+                          )}
                           {item.conflict && (
                             <p className="text-xs text-orange-600 truncate">
                               Conflito: {item.conflict}
