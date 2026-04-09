@@ -557,6 +557,14 @@ export function SessionsTab({ patientId, onRequestNewPlan }: SessionsTabProps) {
     sessionsByPlan[session.plan_id].push(session)
   }
 
+  // Check if all active plans have all sessions completed
+  const allActivePlansCompleted = plans
+    .filter(p => p.active)
+    .every(p => {
+      const ps = sessionsByPlan[p.id] ?? []
+      return ps.length > 0 && ps.every(s => s.completed)
+    })
+
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-semibold">Sessoes</h2>
@@ -604,7 +612,7 @@ export function SessionsTab({ patientId, onRequestNewPlan }: SessionsTabProps) {
                           <span className={cn('text-sm font-medium', session.completed && 'line-through text-muted-foreground')}>
                             Sessao {session.session_number}
                           </span>
-                          {session.session_date ? (
+                          {session.session_date && session.session_date.length >= 10 ? (
                             <p className="text-xs text-muted-foreground">
                               {new Date(session.session_date + 'T12:00:00').toLocaleDateString('pt-BR')}
                             </p>
@@ -626,8 +634,8 @@ export function SessionsTab({ patientId, onRequestNewPlan }: SessionsTabProps) {
                 )}
               </CardContent>
 
-              {/* Offer new protocol when all sessions completed and plan is still active */}
-              {completedCount === plan.total_sessions && plan.total_sessions > 0 && plan.active && (
+              {/* Offer new protocol only when ALL active plans are fully completed */}
+              {completedCount === plan.total_sessions && plan.total_sessions > 0 && plan.active && allActivePlansCompleted && (
                 <CardContent className="border-t pt-4">
                   <div className="rounded-lg border-2 border-dashed border-teal-300 bg-teal-50 p-4 text-center">
                     <PartyPopper className="mx-auto mb-2 h-6 w-6 text-teal-600" />
