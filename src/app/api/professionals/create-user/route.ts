@@ -41,7 +41,7 @@ export async function POST(request: Request) {
         await admin.from('user_roles').upsert({ user_id: existing.id, role: 'profissional' }, { onConflict: 'user_id,role' })
         // Send password reset email
         await admin.auth.resetPasswordForEmail(email, {
-          redirectTo: `${siteUrl}/reset-password`,
+          redirectTo: `${siteUrl}/auth/callback?next=/reset-password?type=recovery`,
         })
         return NextResponse.json({ success: true, user_id: existing.id, already_existed: true })
       }
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
 
     // Also try sending the email via resetPasswordForEmail
     await admin.auth.resetPasswordForEmail(email, {
-      redirectTo: `${siteUrl}/reset-password`,
+      redirectTo: `${siteUrl}/auth/callback?next=/reset-password?type=recovery`,
     })
 
     const actionLink = linkData?.properties?.action_link || null
