@@ -7,6 +7,7 @@ import { useAppointments } from '@/hooks/use-appointments'
 import { useProfessionals } from '@/hooks/use-professionals'
 import { useUserRole } from '@/hooks/use-user-role'
 import { AppointmentFormDialog } from '@/components/appointments/appointment-form-dialog'
+import { BatchScheduleDialog } from '@/components/appointments/batch-schedule-dialog'
 import { type Appointment } from '@/types/database'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -31,6 +32,7 @@ export default function AgendaPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [selectedSlot, setSelectedSlot] = useState<{ date: string; time: string } | null>(null)
+  const [batchOpen, setBatchOpen] = useState(false)
 
   const { appointments, fetchAppointments, fetchByRange, loading } = useAppointments()
   const { activeProfessionals } = useProfessionals()
@@ -249,6 +251,19 @@ export default function AgendaPage() {
         appointment={selectedAppointment}
         defaultDate={selectedSlot?.date}
         defaultTime={selectedSlot?.time}
+        onSwitchToBatch={() => {
+          setDialogOpen(false)
+          setBatchOpen(true)
+        }}
+      />
+
+      <BatchScheduleDialog
+        open={batchOpen}
+        onClose={() => {
+          setBatchOpen(false)
+          loadAppointments()
+        }}
+        showPatientSearch
       />
     </div>
   )

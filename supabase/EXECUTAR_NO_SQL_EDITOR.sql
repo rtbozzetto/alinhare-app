@@ -135,9 +135,8 @@ CREATE TABLE public.appointments (
 );
 ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
 
-CREATE UNIQUE INDEX idx_appointments_no_conflict
-  ON public.appointments (professional_id, appointment_date, appointment_time)
-  WHERE status <> 'cancelada';
+-- Índice removido: conflitos são tratados na aplicação (alerta ao usuário)
+-- DROP INDEX IF EXISTS public.idx_appointments_no_conflict;
 
 CREATE TABLE public.patient_photos (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,

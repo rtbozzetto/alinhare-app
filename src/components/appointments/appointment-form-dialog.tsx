@@ -36,7 +36,7 @@ import {
 } from '@/lib/constants'
 import { formatCurrency, calculateCommission, applyCreditCardFee } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Save, Trash2, Search } from 'lucide-react'
+import { Save, Trash2, Search, CalendarPlus } from 'lucide-react'
 
 interface AppointmentFormDialogProps {
   open: boolean
@@ -44,6 +44,7 @@ interface AppointmentFormDialogProps {
   appointment?: Appointment | null
   defaultDate?: string
   defaultTime?: string
+  onSwitchToBatch?: () => void
 }
 
 export function AppointmentFormDialog({
@@ -52,6 +53,7 @@ export function AppointmentFormDialog({
   appointment,
   defaultDate,
   defaultTime,
+  onSwitchToBatch,
 }: AppointmentFormDialogProps) {
   const { createAppointment, updateAppointment, deleteAppointment } = useAppointments()
   const { patients } = usePatients()
@@ -65,6 +67,8 @@ export function AppointmentFormDialog({
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [patientSearch, setPatientSearch] = useState('')
+  const [conflictWarning, setConflictWarning] = useState<string | null>(null)
+  const [conflictConfirmed, setConflictConfirmed] = useState(false)
 
   // Active plan tracking
   const [activePlan, setActivePlan] = useState<TreatmentPlan | null>(null)
@@ -130,6 +134,11 @@ export function AppointmentFormDialog({
 
   function updateField(field: string, value: unknown) {
     setForm(prev => ({ ...prev, [field]: value }))
+    // Reset conflict state when relevant fields change
+    if (['professional_id', 'appointment_date', 'appointment_time'].includes(field)) {
+      setConflictWarning(null)
+      setConflictConfirmed(false)
+    }
   }
 
   // Fetch active plan when patient is selected (new appointments only)
@@ -210,6 +219,28 @@ export function AppointmentFormDialog({
   const selectedProfessionalName = activeProfessionals.find(p => p.id === form.professional_id)?.full_name
   const commission = calculateCommission(finalAmount, form.lead_source, selectedProfessionalName)
 
+  async function checkConflict(): Promise<string | null> {
+    const { data } = await supabase
+      .from('appointments')
+      .select('id, appointment_time, patient:patients(full_name)')
+      .eq('professional_id', form.professional_id)
+      .eq('appointment_date', form.appointment_date)
+      .eq('appointment_time', form.appointment_time)
+      .neq('status', 'cancelada')
+
+    const existing = isEdit
+      ? data?.filter(a => a.id !== appointment?.id)
+      : data
+
+    if (existing && existing.length > 0) {
+      const names = existing
+        .map(a => (a.patient as any)?.full_name || 'Paciente')
+        .join(', ')
+      return `Já existe agendamento neste horário com: ${names}`
+    }
+    return null
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
@@ -224,6 +255,15 @@ export function AppointmentFormDialog({
     if (!form.appointment_date || !form.appointment_time) {
       toast.error('Data e horario sao obrigatorios.')
       return
+    }
+
+    // Check for conflicts (skip if user already confirmed)
+    if (!conflictConfirmed) {
+      const conflict = await checkConflict()
+      if (conflict) {
+        setConflictWarning(conflict)
+        return
+      }
     }
 
     const payload: Partial<Appointment> = {
@@ -252,24 +292,22 @@ export function AppointmentFormDialog({
       const { error } = await updateAppointment(appointment.id, payload)
       setSaving(false)
       if (error) {
-        const msg = error.message?.includes('idx_appointments_no_conflict')
-          ? 'Já existe um agendamento para este profissional nesta data e horário.'
-          : `Erro ao atualizar agendamento: ${error.message || 'erro desconhecido'}`
-        toast.error(msg)
+        toast.error(`Erro ao atualizar agendamento: ${error.message || 'erro desconhecido'}`)
       } else {
         toast.success('Agendamento atualizado!')
+        setConflictWarning(null)
+        setConflictConfirmed(false)
         onClose()
       }
     } else {
       const { error } = await createAppointment(payload)
       setSaving(false)
       if (error) {
-        const msg = error.message?.includes('idx_appointments_no_conflict')
-          ? 'Já existe um agendamento para este profissional nesta data e horário.'
-          : `Erro ao criar agendamento: ${error.message || 'erro desconhecido'}`
-        toast.error(msg)
+        toast.error(`Erro ao criar agendamento: ${error.message || 'erro desconhecido'}`)
       } else {
         toast.success('Agendamento criado!')
+        setConflictWarning(null)
+        setConflictConfirmed(false)
         onClose()
       }
     }
@@ -294,6 +332,17 @@ export function AppointmentFormDialog({
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Editar Agendamento' : 'Novo Agendamento'}</DialogTitle>
         </DialogHeader>
+
+        {!isEdit && onSwitchToBatch && (
+          <button
+            type="button"
+            onClick={onSwitchToBatch}
+            className="flex items-center gap-2 w-full rounded-md border border-dashed border-teal-300 bg-teal-50 px-3 py-2 text-sm text-teal-700 hover:bg-teal-100 transition-colors"
+          >
+            <CalendarPlus className="h-4 w-4" />
+            Agendar em lote (múltiplas sessões)
+          </button>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Patient search */}
@@ -597,6 +646,32 @@ export function AppointmentFormDialog({
               </div>
             </div>
           </div>
+
+          {/* Conflict warning */}
+          {conflictWarning && (
+            <div className="rounded-md border border-orange-300 bg-orange-50 p-3 space-y-2">
+              <p className="text-sm font-medium text-orange-800">⚠ Conflito de horário</p>
+              <p className="text-sm text-orange-700">{conflictWarning}</p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setConflictWarning(null)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="bg-orange-600 hover:bg-orange-700"
+                  onClick={() => setConflictConfirmed(true)}
+                >
+                  Agendar mesmo assim
+                </Button>
+              </div>
+            </div>
+          )}
 
           <DialogFooter>
             {isEdit && (
