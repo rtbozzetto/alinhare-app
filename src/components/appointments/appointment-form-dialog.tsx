@@ -411,14 +411,6 @@ export function AppointmentFormDialog({
               </div>
             )}
 
-            {/* Active plan indicator */}
-            {activePlan && !isEdit && (
-              <div className="col-span-2">
-                <div className="rounded-md bg-teal-50 border border-teal-200 px-3 py-2 text-xs text-teal-700">
-                  Campos preenchidos do plano ativo: <strong>{activePlan.plan_name}</strong>. Todos podem ser alterados.
-                </div>
-              </div>
-            )}
 
             {/* Status (edit only) */}
             {isEdit && (
