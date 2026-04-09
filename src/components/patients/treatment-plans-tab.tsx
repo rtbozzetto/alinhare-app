@@ -42,9 +42,11 @@ const PLAN_TYPE_LABELS: Record<string, string> = {
 
 interface TreatmentPlansTabProps {
   patientId: string
+  autoOpenCreate?: boolean
+  onAutoOpenHandled?: () => void
 }
 
-export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
+export function TreatmentPlansTab({ patientId, autoOpenCreate, onAutoOpenHandled }: TreatmentPlansTabProps) {
   const { plans, sessions, loading, fetchPlans, fetchSessions, createPlan, updatePlan, deletePlan } = useTreatmentPlans(patientId)
   const { activeProfessionals } = useProfessionals()
   const { professionalId, isAdmin } = useUserRole()
@@ -107,6 +109,13 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
   useEffect(() => {
     if (plans.length > 0) fetchSessions()
   }, [plans, fetchSessions])
+
+  useEffect(() => {
+    if (autoOpenCreate) {
+      openCreateDialog()
+      onAutoOpenHandled?.()
+    }
+  }, [autoOpenCreate])
 
   function updateField(field: string, value: unknown) {
     setForm(prev => ({ ...prev, [field]: value }))

@@ -36,6 +36,8 @@ export default function PatientDetailPage() {
   const [loading, setLoading] = useState(true)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [activeTab, setActiveTab] = useState(defaultTab)
+  const [autoOpenCreatePlan, setAutoOpenCreatePlan] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -115,7 +117,7 @@ export default function PatientDetailPage() {
         )}
       </div>
 
-      <Tabs defaultValue={defaultTab}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full justify-start overflow-x-auto">
           <TabsTrigger value="dados" className="text-xs sm:text-sm">Dados</TabsTrigger>
           <TabsTrigger value="planos" className="text-xs sm:text-sm">Planos</TabsTrigger>
@@ -129,11 +131,21 @@ export default function PatientDetailPage() {
         </TabsContent>
 
         <TabsContent value="planos">
-          <TreatmentPlansTab patientId={patientId} />
+          <TreatmentPlansTab
+            patientId={patientId}
+            autoOpenCreate={autoOpenCreatePlan}
+            onAutoOpenHandled={() => setAutoOpenCreatePlan(false)}
+          />
         </TabsContent>
 
         <TabsContent value="sessoes">
-          <SessionsTab patientId={patientId} />
+          <SessionsTab
+            patientId={patientId}
+            onRequestNewPlan={() => {
+              setAutoOpenCreatePlan(true)
+              setActiveTab('planos')
+            }}
+          />
         </TabsContent>
 
         <TabsContent value="fotos">

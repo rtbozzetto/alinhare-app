@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils'
 
 interface SessionsTabProps {
   patientId: string
+  onRequestNewPlan?: () => void
 }
 
 const PHOTO_TYPE_LABELS: Record<string, string> = {
@@ -33,7 +34,7 @@ const PHOTO_TYPE_LABELS: Record<string, string> = {
   lateral_esquerda: 'Lateral E',
 }
 
-export function SessionsTab({ patientId }: SessionsTabProps) {
+export function SessionsTab({ patientId, onRequestNewPlan }: SessionsTabProps) {
   const { plans, sessions, loading, fetchPlans, fetchSessions, updateSession } =
     useTreatmentPlans(patientId)
   const supabase = createClient()
@@ -625,8 +626,8 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
                 )}
               </CardContent>
 
-              {/* Offer new protocol when all sessions completed */}
-              {completedCount === plan.total_sessions && plan.total_sessions > 0 && (
+              {/* Offer new protocol when all sessions completed and plan is still active */}
+              {completedCount === plan.total_sessions && plan.total_sessions > 0 && plan.active && (
                 <CardContent className="border-t pt-4">
                   <div className="rounded-lg border-2 border-dashed border-teal-300 bg-teal-50 p-4 text-center">
                     <PartyPopper className="mx-auto mb-2 h-6 w-6 text-teal-600" />
@@ -635,12 +636,14 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
                       Todas as {plan.total_sessions} sessões foram realizadas. Deseja oferecer um novo protocolo?
                     </p>
                     <div className="flex justify-center gap-2">
-                      <a href={`?tab=planos`}>
-                        <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
-                          <Plus className="mr-1 h-3 w-3" />
-                          Novo Plano
-                        </Button>
-                      </a>
+                      <Button
+                        size="sm"
+                        className="bg-teal-600 hover:bg-teal-700"
+                        onClick={() => onRequestNewPlan?.()}
+                      >
+                        <Plus className="mr-1 h-3 w-3" />
+                        Novo Plano
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
