@@ -45,10 +45,30 @@ export function calculateAge(birthDate: string | Date): number {
 
 export function calculateCommission(
   amount: number,
-  leadSource: 'clinica' | 'profissional'
+  leadSource: 'clinica' | 'profissional',
+  professionalName?: string
 ): { professionalPercent: number; clinicPercent: number; professionalAmount: number; clinicAmount: number } {
-  const professionalPercent = leadSource === 'profissional' ? 100 : 60
-  const clinicPercent = leadSource === 'profissional' ? 0 : 40
+  let professionalPercent: number
+  let clinicPercent: number
+
+  if (leadSource === 'clinica') {
+    // Lead da clínica: clínica 60%, profissional 40%
+    clinicPercent = 60
+    professionalPercent = 40
+  } else {
+    // Lead do profissional: clínica 40%, profissional 60%
+    // Exceção: Janaína com lead próprio → clínica 0%, ela 100%
+    const isJanaina = professionalName?.toLowerCase().includes('janaina') ||
+                      professionalName?.toLowerCase().includes('janaína')
+    if (isJanaina) {
+      clinicPercent = 0
+      professionalPercent = 100
+    } else {
+      clinicPercent = 40
+      professionalPercent = 60
+    }
+  }
+
   return {
     professionalPercent,
     clinicPercent,

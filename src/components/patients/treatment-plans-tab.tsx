@@ -103,7 +103,8 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
       : form.discount_amount
   const afterDiscount = Math.max(0, form.price - discountValue)
   const finalAmount = form.payment_method === 'cartao' ? applyCreditCardFee(afterDiscount) : afterDiscount
-  const commission = calculateCommission(finalAmount, form.lead_source)
+  const selectedProfessionalName = activeProfessionals.find(p => p.id === form.professional_id)?.full_name
+  const commission = calculateCommission(finalAmount, form.lead_source, selectedProfessionalName)
 
   function openCreateDialog() {
     setForm({
