@@ -15,7 +15,9 @@ export async function POST(request: Request) {
     }
 
     // 2. Parse body
-    const { email, professional_id } = await request.json()
+    const body = await request.json()
+    const email = body.email
+    const professional_id = body.professional_id || body.professionalId
     if (!email || !professional_id) {
       return NextResponse.json({ error: 'Email e professional_id são obrigatórios' }, { status: 400 })
     }
