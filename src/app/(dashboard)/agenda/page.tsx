@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { format, addDays, startOfWeek } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useAppointments } from '@/hooks/use-appointments'
@@ -19,9 +19,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
-import { APPOINTMENT_STATUSES, SCHEDULE } from '@/lib/constants'
-import { cn } from '@/lib/utils'
+import { ChevronLeft, ChevronRight, Plus, MessageCircle } from 'lucide-react'
+import { APPOINTMENT_STATUSES, APPOINTMENT_TYPES, SCHEDULE } from '@/lib/constants'
+import { cn, formatWhatsAppMessage, getWhatsAppUrl } from '@/lib/utils'
+import { toast } from 'sonner'
 
 type ViewMode = 'day' | 'week'
 
@@ -55,6 +56,44 @@ export default function AgendaPage() {
   useEffect(() => {
     loadAppointments()
   }, [loadAppointments])
+
+  // Session info: for plan appointments, compute "Sessão X de Y"
+  const sessionInfo = useMemo(() => {
+    const info: Record<string, string> = {}
+    // Group plan appointments by patient+professional, sorted by date
+    const planAppts = appointments
+      .filter(a => a.payment_status === 'pago_pacote' && a.status !== 'cancelada')
+      .sort((a, b) => {
+        const d = a.appointment_date.localeCompare(b.appointment_date)
+        return d !== 0 ? d : (a.appointment_time ?? '').localeCompare(b.appointment_time ?? '')
+      })
+    const groups: Record<string, typeof planAppts> = {}
+    for (const a of planAppts) {
+      const key = `${a.patient_id}_${a.professional_id}`
+      if (!groups[key]) groups[key] = []
+      groups[key].push(a)
+    }
+    for (const group of Object.values(groups)) {
+      group.forEach((a, i) => {
+        info[a.id] = `${i + 1}/${group.length}`
+      })
+    }
+    return info
+  }, [appointments])
+
+  function handleWhatsApp(appt: Appointment) {
+    const phone = (appt as any).patient?.phone || ''
+    if (!phone) {
+      toast.error('Paciente sem telefone cadastrado.')
+      return
+    }
+    const dateFormatted = format(new Date(appt.appointment_date + 'T12:00:00'), 'dd/MM/yyyy')
+    const time = appt.appointment_time?.slice(0, 5) ?? ''
+    const profName = appt.professional?.full_name ?? 'Profissional'
+    const patientName = appt.patient?.full_name ?? 'Paciente'
+    const message = formatWhatsAppMessage(patientName, dateFormatted, time, profName)
+    window.open(getWhatsAppUrl(phone, message), '_blank')
+  }
 
   function navigate(direction: number) {
     const days = viewMode === 'day' ? 1 : 7
@@ -221,13 +260,34 @@ export default function AgendaPage() {
                             handleAppointmentClick(appt)
                           }}
                         >
-                          <div className="font-medium truncate">
-                            {appt.patient?.full_name ?? 'Paciente'}
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-medium truncate">
+                              {appt.patient?.full_name ?? 'Paciente'}
+                            </span>
+                            <button
+                              type="button"
+                              className="shrink-0 text-green-600 hover:text-green-800"
+                              title="Enviar WhatsApp"
+                              onClick={e => {
+                                e.stopPropagation()
+                                handleWhatsApp(appt)
+                              }}
+                            >
+                              <MessageCircle className="h-3 w-3" />
+                            </button>
                           </div>
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 flex-wrap">
                             <Badge variant={getStatusColor(appt.status)} className="text-[10px] px-1 py-0">
                               {APPOINTMENT_STATUSES.find(s => s.value === appt.status)?.label}
                             </Badge>
+                            <span className="text-[10px] text-muted-foreground">
+                              {APPOINTMENT_TYPES.find(t => t.value === appt.appointment_type)?.label}
+                            </span>
+                            {sessionInfo[appt.id] && (
+                              <span className="text-[10px] font-medium text-teal-600">
+                                S{sessionInfo[appt.id]}
+                              </span>
+                            )}
                             {viewMode === 'week' && appt.professional?.full_name && (
                               <span className="truncate text-muted-foreground">
                                 {appt.professional.full_name.split(' ')[0]}
