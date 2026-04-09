@@ -1,6 +1,6 @@
 'use client'
 
-import { Bell } from 'lucide-react'
+import { Bell, Trash2 } from 'lucide-react'
 import { useNotifications } from '@/hooks/use-notifications'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,8 +25,10 @@ function timeAgo(dateStr: string): string {
 }
 
 export function NotificationBell() {
-  const { notifications, unreadCount, markAsRead, markAllAsRead } =
+  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteRead } =
     useNotifications()
+
+  const readCount = notifications.filter(n => n.read).length
 
   return (
     <Popover>
@@ -43,16 +45,29 @@ export function NotificationBell() {
       <PopoverContent align="end" className="w-80 p-0">
         <div className="flex items-center justify-between border-b px-4 py-3">
           <span className="text-sm font-medium">Notificacoes</span>
-          {unreadCount > 0 && (
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => markAllAsRead()}
-              className="text-xs text-teal-600"
-            >
-              Marcar todas como lidas
-            </Button>
-          )}
+          <div className="flex items-center gap-1">
+            {unreadCount > 0 && (
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => markAllAsRead()}
+                className="text-xs text-teal-600"
+              >
+                Marcar lidas
+              </Button>
+            )}
+            {readCount > 0 && (
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => deleteRead()}
+                className="text-xs text-red-500"
+              >
+                <Trash2 className="mr-1 h-3 w-3" />
+                Excluir lidas
+              </Button>
+            )}
+          </div>
         </div>
         <ScrollArea className="max-h-80">
           {notifications.length === 0 ? (

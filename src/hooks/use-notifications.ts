@@ -13,12 +13,20 @@ export function useNotifications() {
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true)
-    let query = supabase
+
+    // Auto-cleanup: delete notifications older than 10 days
+    const tenDaysAgo = new Date()
+    tenDaysAgo.setDate(tenDaysAgo.getDate() - 10)
+    await supabase
+      .from('notifications')
+      .delete()
+      .lt('created_at', tenDaysAgo.toISOString())
+
+    const { data } = await supabase
       .from('notifications')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(50)
-    const { data } = await query
     if (data) {
       setNotifications(data)
       setUnreadCount(data.filter(n => !n.read).length)
@@ -42,5 +50,12 @@ export function useNotifications() {
     setUnreadCount(0)
   }
 
-  return { notifications, unreadCount, loading, fetchNotifications, markAsRead, markAllAsRead }
+  const deleteRead = async () => {
+    const readIds = notifications.filter(n => n.read).map(n => n.id)
+    if (readIds.length === 0) return
+    await supabase.from('notifications').delete().in('id', readIds)
+    setNotifications(prev => prev.filter(n => !n.read))
+  }
+
+  return { notifications, unreadCount, loading, fetchNotifications, markAsRead, markAllAsRead, deleteRead }
 }
