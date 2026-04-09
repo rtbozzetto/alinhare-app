@@ -48,7 +48,7 @@ export interface TreatmentPlan {
   patient_id: string
   professional_id: string
   plan_name: string
-  plan_type: 'treatment' | 'maintenance'
+  plan_type: 'treatment' | 'maintenance' | 'avaliacao'
   total_sessions: number
   start_date: string
   notes: string | null

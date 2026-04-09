@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/select'
 import { BODY_REGIONS, PHOTO_TYPES } from '@/lib/constants'
 import { toast } from 'sonner'
-import { Check, Eye, Plus, Trash2, Camera, ImageIcon, Brain, Loader2, AlertTriangle, X, Upload } from 'lucide-react'
+import { Check, Eye, Plus, Trash2, Camera, ImageIcon, Brain, Loader2, AlertTriangle, X, Upload, PartyPopper } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SessionsTabProps {
@@ -84,13 +84,64 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
   }, [plans, fetchSessions])
 
   const loadSessionDetails = useCallback(async (session: TreatmentSession) => {
-    // Load discomfort records
+    // Load discomfort records for this session
     const { data: discomforts } = await supabase
       .from('discomfort_records')
       .select('*')
       .eq('session_id', session.id)
       .order('created_at')
-    if (discomforts) setDiscomfortRecords(discomforts)
+
+    if (discomforts && discomforts.length > 0) {
+      // Session already has its own records
+      setDiscomfortRecords(discomforts)
+    } else {
+      // Pre-fill from previous session or patient initial data
+      // 1. Try previous session (most recent completed session before this one)
+      const allSessions = sessions
+        .filter(s => s.plan_id === session.plan_id && s.session_number < session.session_number)
+        .sort((a, b) => b.session_number - a.session_number)
+
+      let prefilled = false
+      for (const prevSession of allSessions) {
+        const { data: prevDiscomforts } = await supabase
+          .from('discomfort_records')
+          .select('*')
+          .eq('session_id', prevSession.id)
+          .order('created_at')
+        if (prevDiscomforts && prevDiscomforts.length > 0) {
+          // Show previous records as reference (without IDs so they appear as "inherited")
+          setDiscomfortRecords(prevDiscomforts.map(d => ({
+            ...d,
+            id: `prev_${d.id}`, // mark as inherited
+          })))
+          prefilled = true
+          break
+        }
+      }
+
+      // 2. If no previous session data, use patient initial discomfort data
+      if (!prefilled) {
+        const { data: patient } = await supabase
+          .from('patients')
+          .select('discomfort_regions, discomfort_intensities')
+          .eq('id', patientId)
+          .single()
+        if (patient?.discomfort_regions?.length) {
+          const initialRecords = patient.discomfort_regions.map((region: string) => ({
+            id: `init_${region}`,
+            session_id: session.id,
+            patient_id: patientId,
+            body_region: region,
+            pain_intensity: patient.discomfort_intensities?.[region] ?? 5,
+            notes: 'Dados iniciais do paciente',
+            created_at: new Date().toISOString(),
+          })) as DiscomfortRecord[]
+          setDiscomfortRecords(initialRecords)
+        } else {
+          setDiscomfortRecords([])
+        }
+      }
+    }
 
     // Load clinical notes
     const { data: notes } = await supabase
@@ -542,10 +593,12 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
                           <span className={cn('text-sm font-medium', session.completed && 'line-through text-muted-foreground')}>
                             Sessao {session.session_number}
                           </span>
-                          {session.session_date && (
+                          {session.session_date ? (
                             <p className="text-xs text-muted-foreground">
                               {new Date(session.session_date + 'T12:00:00').toLocaleDateString('pt-BR')}
                             </p>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">Sem data</p>
                           )}
                         </div>
                       </div>
@@ -561,6 +614,27 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
                   ))
                 )}
               </CardContent>
+
+              {/* Offer new protocol when all sessions completed */}
+              {completedCount === plan.total_sessions && plan.total_sessions > 0 && (
+                <CardContent className="border-t pt-4">
+                  <div className="rounded-lg border-2 border-dashed border-teal-300 bg-teal-50 p-4 text-center">
+                    <PartyPopper className="mx-auto mb-2 h-6 w-6 text-teal-600" />
+                    <p className="font-medium text-teal-800">Plano concluído!</p>
+                    <p className="text-sm text-teal-600 mb-3">
+                      Todas as {plan.total_sessions} sessões foram realizadas. Deseja oferecer um novo protocolo?
+                    </p>
+                    <div className="flex justify-center gap-2">
+                      <a href={`?tab=planos`}>
+                        <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
+                          <Plus className="mr-1 h-3 w-3" />
+                          Novo Plano
+                        </Button>
+                      </a>
+                    </div>
+                  </div>
+                </CardContent>
+              )}
             </Card>
           )
         })
@@ -771,25 +845,43 @@ export function SessionsTab({ patientId }: SessionsTabProps) {
             {/* Discomfort Records */}
             <div className="space-y-3">
               <h3 className="font-medium">Registros de Desconforto</h3>
-              {discomfortRecords.map(record => (
-                <div key={record.id} className="flex items-center justify-between rounded-lg border p-2">
-                  <div className="text-sm">
-                    <span className="font-medium">{record.body_region}</span>
-                    <span className="ml-2 text-muted-foreground">
-                      Intensidade: {record.pain_intensity}/10
-                    </span>
-                    {record.notes && <p className="text-xs text-muted-foreground">{record.notes}</p>}
+              {discomfortRecords.some(r => r.id.startsWith('prev_') || r.id.startsWith('init_')) && (
+                <p className="text-xs text-amber-600 bg-amber-50 rounded-md px-3 py-1.5">
+                  Dados pré-preenchidos do estado anterior. Edite as intensidades conforme o paciente relatar e adicione/remova regiões.
+                </p>
+              )}
+              {discomfortRecords.map(record => {
+                const isInherited = record.id.startsWith('prev_') || record.id.startsWith('init_')
+                return (
+                  <div key={record.id} className={cn(
+                    "flex items-center justify-between rounded-lg border p-2",
+                    isInherited && "border-amber-200 bg-amber-50/50"
+                  )}>
+                    <div className="text-sm">
+                      <span className="font-medium">{record.body_region}</span>
+                      <span className="ml-2 text-muted-foreground">
+                        Intensidade: {record.pain_intensity}/10
+                      </span>
+                      {isInherited && (
+                        <Badge variant="outline" className="ml-2 text-[10px] border-amber-300 text-amber-700">
+                          Estado anterior
+                        </Badge>
+                      )}
+                      {record.notes && <p className="text-xs text-muted-foreground">{record.notes}</p>}
+                    </div>
+                    {!isInherited && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => handleDeleteDiscomfort(record.id)}
+                      >
+                        <Trash2 className="h-3 w-3 text-red-500" />
+                      </Button>
+                    )}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => handleDeleteDiscomfort(record.id)}
-                  >
-                    <Trash2 className="h-3 w-3 text-red-500" />
-                  </Button>
-                </div>
-              ))}
+                )
+              })}
 
               {/* Add new discomfort */}
               <div className="grid gap-2 rounded-lg border p-3 md:grid-cols-4">

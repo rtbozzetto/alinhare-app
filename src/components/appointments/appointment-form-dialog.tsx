@@ -6,7 +6,8 @@ import { usePatients } from '@/hooks/use-patients'
 import { useProfessionals } from '@/hooks/use-professionals'
 import { useUserRole } from '@/hooks/use-user-role'
 import { usePriceTables, type ProtocolKey } from '@/hooks/use-price-tables'
-import { type Appointment } from '@/types/database'
+import { createClient } from '@/lib/supabase/client'
+import { type Appointment, type TreatmentPlan, type TreatmentSession } from '@/types/database'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -58,11 +59,16 @@ export function AppointmentFormDialog({
   const { isAdmin, professionalId } = useUserRole()
   const { grouped, getEvaluationPrice, getPlanOptions } = usePriceTables()
 
+  const supabase = createClient()
   const isEdit = !!appointment
 
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [patientSearch, setPatientSearch] = useState('')
+
+  // Active plan tracking
+  const [activePlan, setActivePlan] = useState<TreatmentPlan | null>(null)
+  const [nextSession, setNextSession] = useState<{ number: number; total: number } | null>(null)
 
   const [form, setForm] = useState({
     patient_id: '',
@@ -124,6 +130,59 @@ export function AppointmentFormDialog({
 
   function updateField(field: string, value: unknown) {
     setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  // Fetch active plan when patient is selected (new appointments only)
+  async function fetchActivePlan(patientId: string) {
+    if (isEdit) return
+
+    const { data: plans } = await supabase
+      .from('treatment_plans')
+      .select('*')
+      .eq('patient_id', patientId)
+      .eq('active', true)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (plans && plans.length > 0) {
+      const plan = plans[0]
+      setActivePlan(plan)
+
+      // Find next pending session
+      const { data: sessions } = await supabase
+        .from('treatment_sessions')
+        .select('*')
+        .eq('plan_id', plan.id)
+        .eq('completed', false)
+        .order('session_number')
+        .limit(1)
+
+      if (sessions && sessions.length > 0) {
+        setNextSession({ number: sessions[0].session_number, total: plan.total_sessions })
+      } else {
+        setNextSession(null)
+      }
+
+      // Auto-fill form fields from active plan
+      const typeMap: Record<string, Appointment['appointment_type']> = {
+        treatment: 'tratamento',
+        maintenance: 'manutencao',
+        avaliacao: 'avaliacao',
+      }
+      setForm(prev => ({
+        ...prev,
+        professional_id: plan.professional_id,
+        appointment_type: typeMap[plan.plan_type] || 'tratamento',
+        payment_status: 'pago_pacote',
+        payment_method: plan.payment_method,
+        custom_price: 0,
+        lead_source: plan.lead_source,
+        lead_professional_id: plan.lead_professional_id,
+      }))
+    } else {
+      setActivePlan(null)
+      setNextSession(null)
+    }
   }
 
   const filteredPatients = useMemo(() => {
@@ -256,6 +315,7 @@ export function AppointmentFormDialog({
                     onClick={() => {
                       updateField('patient_id', p.id)
                       setPatientSearch(p.full_name)
+                      fetchActivePlan(p.id)
                     }}
                   >
                     {p.full_name}
@@ -334,6 +394,25 @@ export function AppointmentFormDialog({
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Session indicator from active plan */}
+            {nextSession && !isEdit && (
+              <div className="space-y-2">
+                <Label>Sessão do Plano</Label>
+                <div className="flex h-9 items-center rounded-md border bg-teal-50 px-3 text-sm font-medium text-teal-700">
+                  Sessão {nextSession.number} de {nextSession.total}
+                </div>
+              </div>
+            )}
+
+            {/* Active plan indicator */}
+            {activePlan && !isEdit && (
+              <div className="col-span-2">
+                <div className="rounded-md bg-teal-50 border border-teal-200 px-3 py-2 text-xs text-teal-700">
+                  Campos preenchidos do plano ativo: <strong>{activePlan.plan_name}</strong>. Todos podem ser alterados.
+                </div>
+              </div>
+            )}
 
             {/* Status (edit only) */}
             {isEdit && (

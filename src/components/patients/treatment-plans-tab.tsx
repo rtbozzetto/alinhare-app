@@ -29,19 +29,27 @@ import {
 import { PAYMENT_STATUSES, PAYMENT_METHODS, LEAD_SOURCES } from '@/lib/constants'
 import { formatCurrency, calculateCommission, applyCreditCardFee } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Pencil } from 'lucide-react'
+
+const PLAN_TYPE_LABELS: Record<string, string> = {
+  treatment: 'Tratamento',
+  maintenance: 'Manutenção',
+  avaliacao: 'Avaliação',
+}
 
 interface TreatmentPlansTabProps {
   patientId: string
 }
 
 export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
-  const { plans, loading, fetchPlans, createPlan, deletePlan } = useTreatmentPlans(patientId)
+  const { plans, sessions, loading, fetchPlans, fetchSessions, createPlan, updatePlan, deletePlan } = useTreatmentPlans(patientId)
   const { activeProfessionals } = useProfessionals()
   const { professionalId, isAdmin } = useUserRole()
   const { grouped, getEvaluationPrice, getPlanOptions } = usePriceTables()
 
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editingPlan, setEditingPlan] = useState<TreatmentPlan | null>(null)
   const [saving, setSaving] = useState(false)
 
   const [form, setForm] = useState({
@@ -62,9 +70,26 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
     lead_professional_id: null as string | null,
   })
 
+  const [editForm, setEditForm] = useState({
+    plan_name: '',
+    plan_type: 'treatment' as TreatmentPlan['plan_type'],
+    total_sessions: 1,
+    payment_status: 'nao_pago' as TreatmentPlan['payment_status'],
+    payment_method: 'pix' as TreatmentPlan['payment_method'],
+    price: 0,
+    discount_amount: 0,
+    discount_type: 'value' as TreatmentPlan['discount_type'],
+    notes: '',
+    active: true,
+  })
+
   useEffect(() => {
     fetchPlans()
   }, [fetchPlans])
+
+  useEffect(() => {
+    if (plans.length > 0) fetchSessions()
+  }, [plans, fetchSessions])
 
   function updateField(field: string, value: unknown) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -81,14 +106,22 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
   function handlePlanTypeChange(type: string) {
     updateField('plan_type', type)
     updateField('selected_price_id', '')
-    updateField('plan_name', '')
-    updateField('total_sessions', 1)
-    updateField('price', 0)
+    if (type === 'avaliacao') {
+      const evalPrice = getEvaluationPrice(form.protocol)
+      updateField('plan_name', 'Avaliação')
+      updateField('total_sessions', 1)
+      updateField('price', evalPrice)
+    } else {
+      updateField('plan_name', '')
+      updateField('total_sessions', 1)
+      updateField('price', 0)
+    }
   }
 
   function handlePriceOptionChange(priceId: string) {
     updateField('selected_price_id', priceId)
-    const options = getPlanOptions(form.protocol, form.plan_type as 'treatment' | 'maintenance')
+    const planType = form.plan_type === 'avaliacao' ? 'treatment' : form.plan_type as 'treatment' | 'maintenance'
+    const options = getPlanOptions(form.protocol, planType)
     const option = options.find(o => o.id === priceId)
     if (option) {
       updateField('plan_name', option.plan_name)
@@ -125,6 +158,23 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
       lead_professional_id: null,
     })
     setDialogOpen(true)
+  }
+
+  function openEditDialog(plan: TreatmentPlan) {
+    setEditingPlan(plan)
+    setEditForm({
+      plan_name: plan.plan_name,
+      plan_type: plan.plan_type,
+      total_sessions: plan.total_sessions,
+      payment_status: plan.payment_status,
+      payment_method: plan.payment_method,
+      price: plan.price,
+      discount_amount: plan.discount_amount,
+      discount_type: plan.discount_type,
+      notes: plan.notes ?? '',
+      active: plan.active,
+    })
+    setEditDialogOpen(true)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -171,6 +221,71 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
     }
   }
 
+  async function handleEditSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingPlan) return
+
+    setSaving(true)
+
+    const editDiscountValue = editForm.discount_type === 'percent'
+      ? (editForm.price * editForm.discount_amount) / 100
+      : editForm.discount_amount
+    const editAfterDiscount = Math.max(0, editForm.price - editDiscountValue)
+    const editFinalAmount = editForm.payment_method === 'cartao' ? applyCreditCardFee(editAfterDiscount) : editAfterDiscount
+    const editProfName = activeProfessionals.find(p => p.id === editingPlan.professional_id)?.full_name
+    const editCommission = calculateCommission(editFinalAmount, editingPlan.lead_source, editProfName)
+
+    const needsMoreSessions = editForm.total_sessions > editingPlan.total_sessions
+
+    const { error } = await updatePlan(editingPlan.id, {
+      plan_name: editForm.plan_name,
+      plan_type: editForm.plan_type,
+      total_sessions: editForm.total_sessions,
+      payment_status: editForm.payment_status,
+      payment_method: editForm.payment_method,
+      price: editForm.price,
+      discount_amount: editForm.discount_amount,
+      discount_type: editForm.discount_type,
+      notes: editForm.notes || null,
+      active: editForm.active,
+      final_paid_amount: editFinalAmount,
+      commission_percentage: editCommission.professionalPercent,
+      commission_amount: editCommission.professionalAmount,
+      clinic_amount: editCommission.clinicAmount,
+    })
+
+    // If total_sessions increased, create additional sessions
+    if (!error && needsMoreSessions) {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const existingCount = editingPlan.total_sessions
+      const newSessions = Array.from(
+        { length: editForm.total_sessions - existingCount },
+        (_, i) => ({
+          plan_id: editingPlan.id,
+          patient_id: patientId,
+          professional_id: editingPlan.professional_id,
+          session_number: existingCount + i + 1,
+          session_date: new Date(
+            Date.now() + (existingCount + i) * 7 * 86400000
+          ).toISOString().split('T')[0],
+        })
+      )
+      await supabase.from('treatment_sessions').insert(newSessions)
+    }
+
+    setSaving(false)
+
+    if (error) {
+      toast.error('Erro ao atualizar plano.')
+    } else {
+      toast.success('Plano atualizado!')
+      setEditDialogOpen(false)
+      fetchPlans()
+      fetchSessions()
+    }
+  }
+
   async function handleDeletePlan(planId: string) {
     const { error } = await deletePlan(planId)
     if (error) {
@@ -188,7 +303,9 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
     )
   }
 
-  const planTypeOptions = getPlanOptions(form.protocol, form.plan_type as 'treatment' | 'maintenance')
+  const planTypeOptions = form.plan_type === 'avaliacao'
+    ? [] // evaluation doesn't use price options dropdown
+    : getPlanOptions(form.protocol, form.plan_type as 'treatment' | 'maintenance')
 
   return (
     <div className="space-y-4">
@@ -208,16 +325,26 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
         <div className="grid gap-3">
           {plans.map(plan => {
             const statusLabel = PAYMENT_STATUSES.find(s => s.value === plan.payment_status)?.label ?? plan.payment_status
+            const planSessions = sessions.filter(s => s.plan_id === plan.id)
+            const completedCount = planSessions.filter(s => s.completed).length
             return (
               <Card key={plan.id}>
                 <CardContent className="flex items-center justify-between p-4">
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium">{plan.plan_name}</span>
                       <Badge variant={plan.active ? 'default' : 'secondary'}>
                         {plan.active ? 'Ativo' : 'Inativo'}
                       </Badge>
                       <Badge variant="outline">{statusLabel}</Badge>
+                      <Badge variant="outline" className="text-xs">
+                        {PLAN_TYPE_LABELS[plan.plan_type] || plan.plan_type}
+                      </Badge>
+                      {planSessions.length > 0 && (
+                        <Badge variant="outline" className="text-xs">
+                          {completedCount}/{plan.total_sessions} sessões
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-sm text-muted-foreground">
                       {plan.total_sessions} sessoes - {formatCurrency(plan.price)}
@@ -227,15 +354,24 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
                       Liquido: {formatCurrency(plan.final_paid_amount)} | Repasse: {formatCurrency(plan.commission_amount)} | Clinica: {formatCurrency(plan.clinic_amount)}
                     </p>
                   </div>
-                  {isAdmin && (
+                  <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleDeletePlan(plan.id)}
+                      onClick={() => openEditDialog(plan)}
                     >
-                      <Trash2 className="h-4 w-4 text-red-500" />
+                      <Pencil className="h-4 w-4 text-blue-500" />
                     </Button>
-                  )}
+                    {isAdmin && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeletePlan(plan.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )
@@ -247,7 +383,7 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Novo Plano de Tratamento</DialogTitle>
+            <DialogTitle>Novo Plano</DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -295,31 +431,34 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="avaliacao">Avaliação</SelectItem>
                     <SelectItem value="treatment">Tratamento</SelectItem>
-                    <SelectItem value="maintenance">Manutencao</SelectItem>
+                    <SelectItem value="maintenance">Manutenção</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Plano *</Label>
-                <Select
-                  value={form.selected_price_id}
-                  onValueChange={(value: string) => handlePriceOptionChange(value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um plano..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {planTypeOptions.map(opt => (
-                      <SelectItem key={opt.id} value={opt.id}>
-                        {opt.plan_name} - {opt.sessions} sess. - {formatCurrency(opt.price)}
-                        {opt.recommended ? ' (Recomendado)' : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {form.plan_type !== 'avaliacao' && (
+                <div className="space-y-2">
+                  <Label>Plano *</Label>
+                  <Select
+                    value={form.selected_price_id}
+                    onValueChange={(value: string) => handlePriceOptionChange(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um plano..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {planTypeOptions.map(opt => (
+                        <SelectItem key={opt.id} value={opt.id}>
+                          {opt.plan_name} - {opt.sessions} sess. - {formatCurrency(opt.price)}
+                          {opt.recommended ? ' (Recomendado)' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label>Data de inicio</Label>
@@ -496,6 +635,135 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
             <DialogFooter>
               <Button type="submit" className="bg-teal-600 hover:bg-teal-700" disabled={saving}>
                 {saving ? 'Salvando...' : 'Criar Plano'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Plan Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar Plano</DialogTitle>
+          </DialogHeader>
+
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nome do Plano</Label>
+              <Input
+                value={editForm.plan_name}
+                onChange={e => setEditForm(prev => ({ ...prev, plan_name: e.target.value }))}
+              />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Tipo</Label>
+                <Select
+                  value={editForm.plan_type}
+                  onValueChange={(value: string) => setEditForm(prev => ({ ...prev, plan_type: value as TreatmentPlan['plan_type'] }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="avaliacao">Avaliação</SelectItem>
+                    <SelectItem value="treatment">Tratamento</SelectItem>
+                    <SelectItem value="maintenance">Manutenção</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Total de Sessões</Label>
+                <Input
+                  type="number"
+                  min={editingPlan?.total_sessions ?? 1}
+                  value={editForm.total_sessions}
+                  onChange={e => setEditForm(prev => ({ ...prev, total_sessions: parseInt(e.target.value) || 1 }))}
+                />
+                {editForm.total_sessions > (editingPlan?.total_sessions ?? 0) && (
+                  <p className="text-xs text-amber-600">
+                    +{editForm.total_sessions - (editingPlan?.total_sessions ?? 0)} sessão(ões) serão adicionadas
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Status Pagamento</Label>
+                <Select
+                  value={editForm.payment_status}
+                  onValueChange={(value: string) => setEditForm(prev => ({ ...prev, payment_status: value as TreatmentPlan['payment_status'] }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAYMENT_STATUSES.map(s => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Método Pagamento</Label>
+                <Select
+                  value={editForm.payment_method}
+                  onValueChange={(value: string) => setEditForm(prev => ({ ...prev, payment_method: value as TreatmentPlan['payment_method'] }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAYMENT_METHODS.map(m => (
+                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Valor (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editForm.price}
+                  onChange={e => setEditForm(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select
+                  value={editForm.active ? 'true' : 'false'}
+                  onValueChange={(value: string) => setEditForm(prev => ({ ...prev, active: value === 'true' }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Ativo</SelectItem>
+                    <SelectItem value="false">Inativo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Observações</Label>
+              <Textarea
+                value={editForm.notes}
+                onChange={e => setEditForm(prev => ({ ...prev, notes: e.target.value }))}
+                rows={2}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button type="submit" className="bg-teal-600 hover:bg-teal-700" disabled={saving}>
+                {saving ? 'Salvando...' : 'Salvar Alterações'}
               </Button>
             </DialogFooter>
           </form>

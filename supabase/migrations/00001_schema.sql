@@ -74,7 +74,7 @@ CREATE TABLE public.treatment_plans (
   patient_id UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
   professional_id UUID NOT NULL REFERENCES public.professionals(id),
   plan_name TEXT NOT NULL,
-  plan_type TEXT NOT NULL DEFAULT 'treatment' CHECK (plan_type IN ('treatment', 'maintenance')),
+  plan_type TEXT NOT NULL DEFAULT 'treatment' CHECK (plan_type IN ('treatment', 'maintenance', 'avaliacao')),
   total_sessions INTEGER NOT NULL,
   start_date DATE NOT NULL DEFAULT CURRENT_DATE,
   notes TEXT,
