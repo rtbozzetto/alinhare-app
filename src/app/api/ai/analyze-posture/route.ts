@@ -6,17 +6,17 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
+  const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
-    return NextResponse.json({ error: 'ANTHROPIC_API_KEY não configurada' }, { status: 500 })
+    return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 500 })
   }
 
   const body = await request.json()
   const {
     photoUrls,        // { frente?: string, costas?: string, lateral_direita?: string, lateral_esquerda?: string }
-    patientData,      // { full_name, birth_date, sex, height_cm, main_complaint, discomfort_regions, discomfort_intensities, discomfort_frequency, discomfort_duration, sport, surgery_history, medication, health_problems }
+    patientData,      // patient record
     exams,            // [{ exam_description, ai_analysis }]
-    previousAnalysis, // string | null — texto da análise anterior
+    previousAnalysis, // string | null
     sessionNumber,    // number
   } = body
 
@@ -24,8 +24,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'É necessário pelo menos uma foto' }, { status: 400 })
   }
 
-  // Build image content blocks from signed URLs
-  const imageBlocks: any[] = []
+  // Build image parts from signed URLs
+  const imageParts: any[] = []
   const viewLabels: Record<string, string> = {
     frente: 'Vista Frontal',
     costas: 'Vista Posterior',
@@ -36,7 +36,6 @@ export async function POST(request: Request) {
   for (const [type, url] of Object.entries(photoUrls)) {
     if (!url) continue
 
-    // Fetch the image and convert to base64
     try {
       const imgResponse = await fetch(url as string)
       if (!imgResponse.ok) continue
@@ -44,15 +43,10 @@ export async function POST(request: Request) {
       const base64 = Buffer.from(imgBuffer).toString('base64')
       const contentType = imgResponse.headers.get('content-type') || 'image/jpeg'
 
-      imageBlocks.push({
-        type: 'text',
-        text: `📷 ${viewLabels[type] || type}:`,
-      })
-      imageBlocks.push({
-        type: 'image',
-        source: {
-          type: 'base64',
-          media_type: contentType,
+      imageParts.push({ text: `📷 ${viewLabels[type] || type}:` })
+      imageParts.push({
+        inlineData: {
+          mimeType: contentType,
           data: base64,
         },
       })
@@ -61,7 +55,7 @@ export async function POST(request: Request) {
     }
   }
 
-  if (imageBlocks.length === 0) {
+  if (imageParts.length === 0) {
     return NextResponse.json({ error: 'Não foi possível carregar as fotos' }, { status: 400 })
   }
 
@@ -107,21 +101,17 @@ ${previousAnalysis}
 `
   }
 
-  const systemPrompt = `Você é um fisioterapeuta especialista em análise postural, trabalhando na clínica Alinhare.
+  const prompt = `Você é um fisioterapeuta especialista em análise postural, trabalhando na clínica Alinhare.
 Sua função é realizar uma análise postural detalhada baseada nas fotos do paciente, considerando todo o contexto clínico disponível.
-
 Seja preciso, técnico e objetivo. Use terminologia adequada da fisioterapia.
-Organize sua análise em seções claras.`
 
-  const userPrompt = `Realize uma análise postural completa deste paciente (Sessão ${sessionNumber || 'N/A'}).
+Realize uma análise postural completa deste paciente (Sessão ${sessionNumber || 'N/A'}).
 
 ${patientContext}
 ${examContext}
 ${comparisonContext}
 
 Analise as fotos posturais abaixo e forneça:
-
-## Estrutura da Análise
 
 ### 1. Análise por Vista
 Para cada foto disponível, descreva detalhadamente as alterações posturais observadas:
@@ -155,42 +145,45 @@ Compare os achados atuais com a análise anterior. Destaque:
 Seja detalhado e prático nas recomendações.`
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 4096,
-        system: systemPrompt,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              ...imageBlocks,
-              { type: 'text', text: userPrompt },
-            ],
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                ...imageParts,
+                { text: prompt },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 4096,
           },
-        ],
-      }),
-    })
+        }),
+      }
+    )
 
     if (!response.ok) {
       const errText = await response.text()
-      console.error('Anthropic API error:', errText)
+      console.error('Gemini API error:', errText)
       return NextResponse.json({ error: 'Erro na API de análise' }, { status: 502 })
     }
 
     const data = await response.json()
-    const analysisText = data.content?.find((c: any) => c.type === 'text')?.text ?? ''
+    const analysisText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+
+    if (!analysisText) {
+      return NextResponse.json({ error: 'A IA não gerou análise. Tente novamente.' }, { status: 502 })
+    }
 
     return NextResponse.json({
       analysis: analysisText,
       type: previousAnalysis ? 'compare' : 'single',
-      model: 'claude-sonnet-4-6',
+      model: 'gemini-2.0-flash',
     })
   } catch (error) {
     console.error('Analysis error:', error)
