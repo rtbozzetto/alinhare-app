@@ -20,7 +20,10 @@ export function useAppointments() {
     if (professionalId) query = query.eq('professional_id', professionalId)
 
     const { data, error } = await query
-    if (!error && data) setAppointments(data as Appointment[])
+    if (error) {
+      console.error('fetchAppointments error:', error)
+    }
+    setAppointments((data as Appointment[]) ?? [])
     setLoading(false)
   }, [supabase])
 
@@ -33,7 +36,10 @@ export function useAppointments() {
       .lte('appointment_date', endDate)
       .order('appointment_date')
       .order('appointment_time')
-    if (!error && data) setAppointments(data as Appointment[])
+    if (error) {
+      console.error('fetchByRange error:', error)
+    }
+    setAppointments((data as Appointment[]) ?? [])
     setLoading(false)
   }, [supabase])
 
