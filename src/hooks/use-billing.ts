@@ -24,7 +24,7 @@ export function useBilling() {
     const endDate = new Date(year, month, 0).toISOString().split('T')[0] // last day
     const { data } = await supabase
       .from('appointments')
-      .select('*, patient:patients(full_name), professional:professionals(id, full_name)')
+      .select('*, patient:patients(full_name), professional:professionals!professional_id(id, full_name)')
       .gte('appointment_date', startDate)
       .lte('appointment_date', endDate)
       .order('appointment_date')

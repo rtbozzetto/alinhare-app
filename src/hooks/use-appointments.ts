@@ -12,7 +12,7 @@ export function useAppointments() {
     setLoading(true)
     let query = supabase
       .from('appointments')
-      .select('*, patient:patients(full_name), professional:professionals(id, full_name)')
+      .select('*, patient:patients(full_name), professional:professionals!professional_id(id, full_name)')
       .order('appointment_date')
       .order('appointment_time')
 
@@ -31,7 +31,7 @@ export function useAppointments() {
     setLoading(true)
     const { data, error } = await supabase
       .from('appointments')
-      .select('*, patient:patients(full_name), professional:professionals(id, full_name)')
+      .select('*, patient:patients(full_name), professional:professionals!professional_id(id, full_name)')
       .gte('appointment_date', startDate)
       .lte('appointment_date', endDate)
       .order('appointment_date')
@@ -47,7 +47,7 @@ export function useAppointments() {
     const { data, error } = await supabase
       .from('appointments')
       .insert(appointment)
-      .select('*, patient:patients(full_name), professional:professionals(id, full_name)')
+      .select('*, patient:patients(full_name), professional:professionals!professional_id(id, full_name)')
       .single()
     if (error) {
       console.error('Appointment create error:', error)
@@ -71,7 +71,7 @@ export function useAppointments() {
       .from('appointments')
       .update(updates)
       .eq('id', id)
-      .select('*, patient:patients(full_name), professional:professionals(id, full_name)')
+      .select('*, patient:patients(full_name), professional:professionals!professional_id(id, full_name)')
       .single()
     if (!error && data) {
       setAppointments(prev => prev.map(a => a.id === id ? data as Appointment : a))
