@@ -22,6 +22,8 @@ export async function POST(request: Request) {
 
     // 3. Create auth user with admin client
     const admin = await createServerSupabaseAdmin()
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://alinhare-app.vercel.app'
+
     const { data: authData, error: authError } = await admin.auth.admin.createUser({
       email,
       email_confirm: true,
@@ -30,11 +32,15 @@ export async function POST(request: Request) {
     if (authError) {
       // Check if user already exists
       const { data: existingUsers } = await admin.auth.admin.listUsers()
-      const existing = existingUsers?.users?.find(u => u.email === email)
+      const existing = existingUsers?.users?.find((u: any) => u.email === email)
       if (existing) {
         // Link existing user
         await admin.from('professionals').update({ auth_user_id: existing.id }).eq('id', professional_id)
         await admin.from('user_roles').upsert({ user_id: existing.id, role: 'profissional' }, { onConflict: 'user_id,role' })
+        // Send password reset email
+        await admin.auth.resetPasswordForEmail(email, {
+          redirectTo: `${siteUrl}/reset-password`,
+        })
         return NextResponse.json({ success: true, user_id: existing.id, already_existed: true })
       }
       return NextResponse.json({ error: authError.message }, { status: 400 })
@@ -44,8 +50,10 @@ export async function POST(request: Request) {
     await admin.from('professionals').update({ auth_user_id: authData.user.id }).eq('id', professional_id)
     await admin.from('user_roles').insert({ user_id: authData.user.id, role: 'profissional' })
 
-    // 5. Send password reset email
-    await admin.auth.admin.generateLink({ type: 'recovery', email })
+    // 5. Send password reset email so professional can set their password
+    await admin.auth.resetPasswordForEmail(email, {
+      redirectTo: `${siteUrl}/reset-password`,
+    })
 
     return NextResponse.json({ success: true, user_id: authData.user.id, already_existed: false })
   } catch (err) {

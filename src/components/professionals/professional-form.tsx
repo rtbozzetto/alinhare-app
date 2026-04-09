@@ -89,6 +89,8 @@ export function ProfessionalForm({ professional }: ProfessionalFormProps) {
           if (!res.ok) {
             const result = await res.json()
             toast.error(result.error || 'Erro ao criar usuario de acesso.')
+          } else {
+            toast.success('Email enviado para o profissional definir a senha!')
           }
         } catch {
           toast.error('Erro ao criar usuario de acesso.')
