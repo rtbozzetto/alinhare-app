@@ -167,7 +167,7 @@ export function PatientForm({ patient }: PatientFormProps) {
         <CardHeader>
           <CardTitle>Dados Pessoais</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
+        <CardContent className="grid gap-3 sm:gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="full_name">Nome completo *</Label>
             <Input
@@ -257,7 +257,7 @@ export function PatientForm({ patient }: PatientFormProps) {
         <CardHeader>
           <CardTitle>Atividades e Historico</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
+        <CardContent className="grid gap-3 sm:gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="sport">Esporte / Atividade fisica</Label>
             <Input
@@ -326,7 +326,7 @@ export function PatientForm({ patient }: PatientFormProps) {
           <CardTitle>Mapa de Desconforto</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Frequencia</Label>
               <Select
@@ -424,8 +424,8 @@ export function PatientForm({ patient }: PatientFormProps) {
             <div className="space-y-3">
               <Label>Intensidade (0-10)</Label>
               {form.discomfort_regions.map(region => (
-                <div key={region} className="flex items-center gap-3">
-                  <span className="w-28 text-sm">{region}</span>
+                <div key={region} className="flex items-center gap-2 sm:gap-3">
+                  <span className="w-20 sm:w-28 text-xs sm:text-sm truncate">{region}</span>
                   <input
                     type="range"
                     min={0}
@@ -445,8 +445,8 @@ export function PatientForm({ patient }: PatientFormProps) {
       </Card>
 
       {/* Submit */}
-      <div className="flex justify-end">
-        <Button type="submit" className="bg-teal-600 hover:bg-teal-700" disabled={saving}>
+      <div className="sticky bottom-0 -mx-4 bg-background border-t p-4 sm:static sm:mx-0 sm:border-0 sm:p-0 flex justify-end">
+        <Button type="submit" className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700" disabled={saving}>
           <Save className="mr-2 h-4 w-4" />
           {saving ? 'Salvando...' : isEdit ? 'Salvar Alteracoes' : 'Cadastrar Paciente'}
         </Button>

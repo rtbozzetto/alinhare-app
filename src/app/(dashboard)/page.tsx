@@ -22,11 +22,11 @@ export default function HomePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Pacientes</h1>
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-xl sm:text-2xl font-bold">Pacientes</h1>
         <Link href="/pacientes/novo">
-          <Button className="bg-teal-600 hover:bg-teal-700">
-            <Plus className="mr-2 h-4 w-4" />
+          <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
+            <Plus className="mr-1 h-4 w-4" />
             Novo Paciente
           </Button>
         </Link>
@@ -55,16 +55,16 @@ export default function HomePage() {
           {filtered.map(patient => (
             <Link key={patient.id} href={`/pacientes/${patient.id}`}>
               <Card className="transition-colors hover:bg-accent">
-                <CardContent className="flex items-center justify-between p-4">
-                  <div>
-                    <p className="font-medium">{patient.full_name}</p>
-                    <p className="text-sm text-muted-foreground">
+                <CardContent className="flex flex-col gap-1 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{patient.full_name}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate">
                       {calculateAge(patient.birth_date)} anos
                       {patient.main_complaint && ` • ${patient.main_complaint}`}
                     </p>
                   </div>
                   {patient.phone && (
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground shrink-0">
                       <Phone className="h-3 w-3" />
                       {patient.phone}
                     </div>

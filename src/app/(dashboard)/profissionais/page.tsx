@@ -21,12 +21,12 @@ function ProfessionalsList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Profissionais</h1>
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-xl sm:text-2xl font-bold">Profissionais</h1>
         <Link href="/profissionais/novo">
-          <Button className="bg-teal-600 hover:bg-teal-700">
-            <Plus className="mr-2 h-4 w-4" />
-            Novo Profissional
+          <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
+            <Plus className="mr-1 h-4 w-4" />
+            <span className="hidden sm:inline">Novo </span>Profissional
           </Button>
         </Link>
       </div>
@@ -44,17 +44,17 @@ function ProfessionalsList() {
           {professionals.map(prof => (
             <Link key={prof.id} href={`/profissionais/${prof.id}`}>
               <Card className="transition-colors hover:bg-accent">
-                <CardContent className="flex items-center justify-between p-4">
-                  <div>
-                    <p className="font-medium">{prof.full_name}</p>
-                    <p className="text-sm text-muted-foreground">
+                <CardContent className="flex flex-col gap-1 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{prof.full_name}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate">
                       {prof.specialty || 'Sem especialidade'}
                       {prof.email && ` - ${prof.email}`}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     {prof.phone && (
-                      <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                      <span className="hidden sm:flex items-center gap-1 text-sm text-muted-foreground">
                         <Phone className="h-3 w-3" />
                         {prof.phone}
                       </span>

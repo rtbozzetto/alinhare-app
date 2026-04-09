@@ -119,12 +119,12 @@ export default function AgendaPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold">Agenda</h1>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <h1 className="text-xl sm:text-2xl font-bold">Agenda</h1>
+        <div className="flex flex-wrap items-center gap-2">
           {isAdmin && (
             <Select value={filterProfId} onValueChange={(value: string) => setFilterProfId(value)}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-36 sm:w-48">
                 <SelectValue placeholder="Profissional" />
               </SelectTrigger>
               <SelectContent>
@@ -138,7 +138,7 @@ export default function AgendaPage() {
             </Select>
           )}
           <Select value={viewMode} onValueChange={(value: string) => setViewMode(value as ViewMode)}>
-            <SelectTrigger className="w-28">
+            <SelectTrigger className="w-24 sm:w-28">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -149,13 +149,14 @@ export default function AgendaPage() {
           <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant="outline" onClick={() => setCurrentDate(new Date())}>
+          <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>
             Hoje
           </Button>
           <Button variant="outline" size="icon" onClick={() => navigate(1)}>
             <ChevronRight className="h-4 w-4" />
           </Button>
           <Button
+            size="sm"
             className="bg-teal-600 hover:bg-teal-700"
             onClick={() => {
               setSelectedAppointment(null)
@@ -163,7 +164,7 @@ export default function AgendaPage() {
               setDialogOpen(true)
             }}
           >
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="mr-1 h-4 w-4" />
             Novo
           </Button>
         </div>

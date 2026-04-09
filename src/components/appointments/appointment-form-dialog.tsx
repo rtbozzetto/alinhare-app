@@ -284,7 +284,7 @@ export function AppointmentFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={val => !val && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[95vw] sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Editar Agendamento' : 'Novo Agendamento'}</DialogTitle>
         </DialogHeader>
@@ -325,7 +325,7 @@ export function AppointmentFormDialog({
             )}
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
             {/* Professional */}
             <div className="space-y-2">
               <Label>Profissional *</Label>
@@ -450,7 +450,7 @@ export function AppointmentFormDialog({
           {/* Payment section */}
           <div className="space-y-4 rounded-lg border p-4">
             <h3 className="font-medium">Pagamento</h3>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Status de pagamento</Label>
                 <Select

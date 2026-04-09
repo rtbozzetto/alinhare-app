@@ -77,8 +77,8 @@ export default function PatientDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{patient.full_name}</h1>
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-xl sm:text-2xl font-bold truncate">{patient.full_name}</h1>
         {isAdmin && (
           <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
             <DialogTrigger asChild>
@@ -116,12 +116,12 @@ export default function PatientDetailPage() {
       </div>
 
       <Tabs defaultValue={defaultTab}>
-        <TabsList>
-          <TabsTrigger value="dados">Dados</TabsTrigger>
-          <TabsTrigger value="planos">Planos</TabsTrigger>
-          <TabsTrigger value="sessoes">Sessoes</TabsTrigger>
-          <TabsTrigger value="fotos">Fotos</TabsTrigger>
-          <TabsTrigger value="exames">Exames</TabsTrigger>
+        <TabsList className="w-full justify-start overflow-x-auto">
+          <TabsTrigger value="dados" className="text-xs sm:text-sm">Dados</TabsTrigger>
+          <TabsTrigger value="planos" className="text-xs sm:text-sm">Planos</TabsTrigger>
+          <TabsTrigger value="sessoes" className="text-xs sm:text-sm">Sessoes</TabsTrigger>
+          <TabsTrigger value="fotos" className="text-xs sm:text-sm">Fotos</TabsTrigger>
+          <TabsTrigger value="exames" className="text-xs sm:text-sm">Exames</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dados">

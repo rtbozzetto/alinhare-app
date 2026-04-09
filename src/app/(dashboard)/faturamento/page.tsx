@@ -107,11 +107,11 @@ function BillingContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold">Faturamento</h1>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <h1 className="text-xl sm:text-2xl font-bold">Faturamento</h1>
+        <div className="flex flex-wrap items-center gap-2">
           <Select value={filterProfId} onValueChange={(value: string) => setFilterProfId(value)}>
-            <SelectTrigger className="w-48">
+            <SelectTrigger className="w-36 sm:w-48">
               <SelectValue placeholder="Profissional" />
             </SelectTrigger>
             <SelectContent>
@@ -126,7 +126,7 @@ function BillingContent() {
           <Button variant="outline" size="icon" onClick={() => setCurrentMonth(prev => subMonths(prev, 1))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="min-w-[140px] text-center text-sm font-medium capitalize">
+          <span className="min-w-[100px] sm:min-w-[140px] text-center text-sm font-medium capitalize">
             {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
           </span>
           <Button variant="outline" size="icon" onClick={() => setCurrentMonth(prev => addMonths(prev, 1))}>
@@ -136,13 +136,13 @@ function BillingContent() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-5">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs text-muted-foreground">Bruto</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-lg font-bold">{formatCurrency(totals.bruto)}</p>
+            <p className="text-sm sm:text-lg font-bold">{formatCurrency(totals.bruto)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -150,7 +150,7 @@ function BillingContent() {
             <CardTitle className="text-xs text-muted-foreground">Desconto</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-lg font-bold text-red-600">{formatCurrency(totals.desconto)}</p>
+            <p className="text-sm sm:text-lg font-bold text-red-600">{formatCurrency(totals.desconto)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -158,7 +158,7 @@ function BillingContent() {
             <CardTitle className="text-xs text-muted-foreground">Liquido</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-lg font-bold text-teal-600">{formatCurrency(totals.liquido)}</p>
+            <p className="text-sm sm:text-lg font-bold text-teal-600">{formatCurrency(totals.liquido)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -166,7 +166,7 @@ function BillingContent() {
             <CardTitle className="text-xs text-muted-foreground">Repasse</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-lg font-bold">{formatCurrency(totals.repasse)}</p>
+            <p className="text-sm sm:text-lg font-bold">{formatCurrency(totals.repasse)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -174,13 +174,13 @@ function BillingContent() {
             <CardTitle className="text-xs text-muted-foreground">Clinica</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-lg font-bold">{formatCurrency(totals.clinica)}</p>
+            <p className="text-sm sm:text-lg font-bold">{formatCurrency(totals.clinica)}</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {isClosed ? (
           <Button variant="outline" onClick={handleReopenMonth}>
             <Unlock className="mr-2 h-4 w-4" />
@@ -211,29 +211,30 @@ function BillingContent() {
           Nenhum agendamento neste periodo.
         </div>
       ) : (
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Data</TableHead>
-              <TableHead>Paciente</TableHead>
-              <TableHead>Profissional</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead>Valor</TableHead>
-              <TableHead>Desconto</TableHead>
-              <TableHead>Liquido</TableHead>
-              <TableHead>Comissao</TableHead>
-              <TableHead>Clinica</TableHead>
-              <TableHead>Pagamento</TableHead>
+              <TableHead className="whitespace-nowrap">Data</TableHead>
+              <TableHead className="whitespace-nowrap">Paciente</TableHead>
+              <TableHead className="whitespace-nowrap">Profissional</TableHead>
+              <TableHead className="whitespace-nowrap">Tipo</TableHead>
+              <TableHead className="whitespace-nowrap">Valor</TableHead>
+              <TableHead className="whitespace-nowrap">Desconto</TableHead>
+              <TableHead className="whitespace-nowrap">Liquido</TableHead>
+              <TableHead className="whitespace-nowrap">Comissao</TableHead>
+              <TableHead className="whitespace-nowrap">Clinica</TableHead>
+              <TableHead className="whitespace-nowrap">Pagamento</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredAppointments.map(appt => (
               <TableRow key={appt.id}>
-                <TableCell>
+                <TableCell className="whitespace-nowrap">
                   {new Date(appt.appointment_date + 'T12:00:00').toLocaleDateString('pt-BR')}
                 </TableCell>
-                <TableCell>{appt.patient?.full_name ?? '-'}</TableCell>
-                <TableCell>{appt.professional?.full_name ?? '-'}</TableCell>
+                <TableCell className="whitespace-nowrap">{appt.patient?.full_name ?? '-'}</TableCell>
+                <TableCell className="whitespace-nowrap">{appt.professional?.full_name ?? '-'}</TableCell>
                 <TableCell>
                   {APPOINTMENT_TYPES.find(t => t.value === appt.appointment_type)?.label ?? appt.appointment_type}
                 </TableCell>
@@ -251,6 +252,7 @@ function BillingContent() {
             ))}
           </TableBody>
         </Table>
+        </div>
       )}
     </div>
   )
