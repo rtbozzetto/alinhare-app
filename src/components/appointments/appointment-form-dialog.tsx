@@ -604,19 +604,37 @@ export function AppointmentFormDialog({
           {showExistingAlert && existingAppts.length > 0 && !isEdit && (
             <div className="rounded-md border border-orange-300 bg-orange-50 p-3 space-y-2">
               <p className="text-sm font-medium text-orange-800">⚠ Este paciente já possui {existingAppts.length} agendamento(s) futuro(s):</p>
-              <div className="max-h-32 overflow-y-auto rounded border divide-y bg-white">
+              <div className="max-h-40 overflow-y-auto rounded border divide-y bg-white">
                 {existingAppts.map(a => (
-                  <div key={a.id} className="flex items-center justify-between px-3 py-1.5 text-sm">
-                    <span className="font-medium">
-                      {new Date(a.date + 'T12:00:00').toLocaleDateString('pt-BR')} às {a.time}
-                    </span>
-                    <span className="text-muted-foreground text-xs">
-                      {APPOINTMENT_TYPES.find(t => t.value === a.type)?.label ?? a.type}
-                    </span>
+                  <div key={a.id} className="flex items-center justify-between px-3 py-1.5 text-sm gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-medium whitespace-nowrap">
+                        {new Date(a.date + 'T12:00:00').toLocaleDateString('pt-BR')} às {a.time}
+                      </span>
+                      <span className="text-muted-foreground text-xs truncate">
+                        {APPOINTMENT_TYPES.find(t => t.value === a.type)?.label ?? a.type}
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs text-orange-700 hover:text-orange-900 hover:bg-orange-100 shrink-0 h-7 px-2"
+                      onClick={async () => {
+                        // Delete old appointment and pre-fill form with its date/time
+                        await supabase.from('appointments').delete().eq('id', a.id)
+                        updateField('appointment_date', a.date)
+                        updateField('appointment_time', a.time)
+                        setExistingAppts(prev => prev.filter(ea => ea.id !== a.id))
+                        toast.success('Agendamento removido. Preencha os dados e salve.')
+                      }}
+                    >
+                      Substituir
+                    </Button>
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-orange-700">Você pode continuar criando um novo agendamento ou fechar este formulário.</p>
+              <p className="text-xs text-orange-700">Clique em "Substituir" para usar a data/hora de um agendamento existente, ou continue criando um novo.</p>
               <Button
                 type="button"
                 size="sm"
@@ -624,7 +642,7 @@ export function AppointmentFormDialog({
                 className="text-xs text-orange-600"
                 onClick={() => setShowExistingAlert(false)}
               >
-                Entendi, continuar
+                Entendi, criar novo
               </Button>
             </div>
           )}
