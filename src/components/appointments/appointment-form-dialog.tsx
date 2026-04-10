@@ -168,13 +168,13 @@ export function AppointmentFormDialog({
       updateField('custom_price', evalPrice)
       updateField('payment_status', 'nao_pago')
     } else if (type === 'tratamento') {
-      // Use active plan price if available
+      // Use active plan if available
       if (activePlan && activePlan.plan_type === 'treatment') {
-        const perSession = activePlan.total_sessions > 0
+        const isPaid = activePlan.payment_status === 'pago' || activePlan.payment_status === 'pago_pacote'
+        updateField('custom_price', isPaid ? 0 : (activePlan.total_sessions > 0
           ? Math.round((activePlan.final_paid_amount ?? activePlan.price) / activePlan.total_sessions * 100) / 100
-          : 0
-        updateField('custom_price', perSession)
-        updateField('payment_status', activePlan.payment_status === 'pago' ? 'pago_pacote' : 'nao_pago')
+          : 0))
+        updateField('payment_status', isPaid ? 'pago_pacote' : 'nao_pago')
       } else {
         const options = getPlanOptions(protocol, 'treatment')
         const recommended = options.find(o => o.recommended) || options[0]
@@ -184,11 +184,11 @@ export function AppointmentFormDialog({
       }
     } else if (type === 'manutencao') {
       if (activePlan && activePlan.plan_type === 'maintenance') {
-        const perSession = activePlan.total_sessions > 0
+        const isPaid = activePlan.payment_status === 'pago' || activePlan.payment_status === 'pago_pacote'
+        updateField('custom_price', isPaid ? 0 : (activePlan.total_sessions > 0
           ? Math.round((activePlan.final_paid_amount ?? activePlan.price) / activePlan.total_sessions * 100) / 100
-          : 0
-        updateField('custom_price', perSession)
-        updateField('payment_status', activePlan.payment_status === 'pago' ? 'pago_pacote' : 'nao_pago')
+          : 0))
+        updateField('payment_status', isPaid ? 'pago_pacote' : 'nao_pago')
       } else {
         const options = getPlanOptions(protocol, 'maintenance')
         const recommended = options.find(o => o.recommended) || options[0]
@@ -260,17 +260,16 @@ export function AppointmentFormDialog({
         avaliacao: 'avaliacao',
       }
       const appointmentType = typeMap[plan.plan_type] || 'tratamento'
-      // Calculate per-session price from plan
-      const perSessionPrice = plan.total_sessions > 0
-        ? Math.round((plan.final_paid_amount ?? plan.price) / plan.total_sessions * 100) / 100
-        : 0
+      const isPlanPaid = plan.payment_status === 'pago' || plan.payment_status === 'pago_pacote'
       setForm(prev => ({
         ...prev,
         professional_id: plan.professional_id,
         appointment_type: appointmentType,
-        payment_status: plan.payment_status === 'pago' || plan.payment_status === 'pago_pacote' ? 'pago_pacote' : 'nao_pago',
+        payment_status: isPlanPaid ? 'pago_pacote' : 'nao_pago',
         payment_method: plan.payment_method,
-        custom_price: perSessionPrice,
+        custom_price: isPlanPaid ? 0 : (plan.total_sessions > 0
+          ? Math.round((plan.final_paid_amount ?? plan.price) / plan.total_sessions * 100) / 100
+          : 0),
         discount_amount: 0,
         discount_type: 'value',
         lead_source: plan.lead_source,
