@@ -73,6 +73,9 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
   const [savingSchedule, setSavingSchedule] = useState(false)
   const [existingAppointments, setExistingAppointments] = useState<Array<{ id: string; date: string; time: string }>>([])
   const [existingAlertOpen, setExistingAlertOpen] = useState(false)
+  const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null)
+  const [editAppointmentOpen, setEditAppointmentOpen] = useState(false)
+  const [editAppointmentData, setEditAppointmentData] = useState<any>(null)
 
   const [form, setForm] = useState({
     professional_id: professionalId ?? '',
@@ -1422,24 +1425,64 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
           <p className="text-sm text-muted-foreground">
             Este plano já possui {existingAppointments.length} agendamento(s):
           </p>
-          <div className="max-h-40 overflow-y-auto rounded-md border divide-y">
-            {existingAppointments.map((a, i) => (
+          <div className="max-h-48 overflow-y-auto rounded-md border divide-y">
+            {existingAppointments.map((a) => (
               <div key={a.id} className="flex items-center justify-between px-3 py-2 text-sm">
-                <span className="font-medium">
-                  {new Date(a.date + 'T12:00:00').toLocaleDateString('pt-BR')}
-                </span>
-                <span className="text-muted-foreground">{a.time}</span>
+                <div>
+                  <span className="font-medium">
+                    {new Date(a.date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                  </span>
+                  <span className="text-muted-foreground ml-2">{a.time}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    title="Editar agendamento"
+                    onClick={async () => {
+                      const supabase = createClient()
+                      const { data } = await supabase
+                        .from('appointments')
+                        .select('*, patient:patients(full_name, phone), professional:professionals!professional_id(id, full_name)')
+                        .eq('id', a.id)
+                        .single()
+                      if (data) {
+                        setEditAppointmentData(data)
+                        setExistingAlertOpen(false)
+                        setEditAppointmentOpen(true)
+                      }
+                    }}
+                  >
+                    <Pencil className="h-3.5 w-3.5 text-blue-500" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    title="Excluir agendamento"
+                    onClick={async () => {
+                      const supabase = createClient()
+                      await supabase.from('appointments').delete().eq('id', a.id)
+                      setExistingAppointments(prev => prev.filter(ea => ea.id !== a.id))
+                      toast.success('Agendamento excluído.')
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
-          <p className="text-sm text-muted-foreground">
-            Deseja substituir os agendamentos existentes?
-          </p>
+          {existingAppointments.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              Edite individualmente ou substitua todos:
+            </p>
+          )}
           <div className="flex flex-col gap-2 pt-2">
             <Button
               className="w-full bg-orange-600 hover:bg-orange-700"
               onClick={async () => {
-                // Delete existing appointments and open schedule dialog
                 const supabase = createClient()
                 for (const a of existingAppointments) {
                   await supabase.from('appointments').delete().eq('id', a.id)
@@ -1450,7 +1493,7 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                 setScheduleDialogOpen(true)
               }}
             >
-              Substituir agendamentos
+              Substituir todos
             </Button>
             <Button
               variant="outline"
@@ -1475,6 +1518,20 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Edit single appointment from existing list */}
+      <AppointmentFormDialog
+        open={editAppointmentOpen}
+        onClose={() => {
+          setEditAppointmentOpen(false)
+          setEditAppointmentData(null)
+          // Re-check existing appointments after edit
+          if (schedulingPlan) {
+            openScheduleDialog(schedulingPlan)
+          }
+        }}
+        appointment={editAppointmentData}
+      />
     </div>
   )
 }
