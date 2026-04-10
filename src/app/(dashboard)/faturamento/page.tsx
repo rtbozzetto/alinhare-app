@@ -142,7 +142,7 @@ function BillingContent() {
     const profName = filterProfId === 'all'
       ? 'Todos'
       : activeProfessionals.find(p => p.id === filterProfId)?.full_name ?? 'Profissional'
-    generateBillingPdf(filteredAppointments, profName, refMonth, totals)
+    generateBillingPdf(filteredAppointments, filteredPlans, filteredSessions, profName, refMonth, totals)
   }
 
   return (

@@ -130,7 +130,7 @@ export const DEFAULT_PRICE_TABLES = {
 // Clinic info for PDFs
 export const CLINIC_INFO = {
   name: 'Alinhare',
-  fullName: 'Alinhare - Clínica de Fisioterapia',
+  fullName: 'Clínica Alinhare',
   address: 'Av. das Américas, 500, bl 20, sala 210 - Shopping Downtown',
   phone: '21 99809-0808',
   instagram: '@alinharesaude',
