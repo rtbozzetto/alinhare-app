@@ -145,7 +145,7 @@ export function AppointmentFormDialog({
         fetchActivePlan(defaultPatientId)
       }
     }
-  }, [appointment, defaultDate, defaultTime, defaultPatientId, defaultPatientName, defaultProfessionalId, professionalId])
+  }, [appointment, defaultDate, defaultTime, defaultPatientId, defaultPatientName, defaultProfessionalId, defaultSessionId, professionalId])
 
   function updateField(field: string, value: unknown) {
     setForm(prev => ({ ...prev, [field]: value }))
