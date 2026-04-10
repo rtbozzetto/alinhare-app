@@ -74,7 +74,7 @@ export interface TreatmentSession {
   patient_id: string
   professional_id: string
   session_number: number
-  session_date: string
+  session_date: string | null
   notes: string | null
   completed: boolean
   created_at: string

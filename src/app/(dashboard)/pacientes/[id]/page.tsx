@@ -142,6 +142,7 @@ export default function PatientDetailPage() {
         <TabsContent value="sessoes">
           <SessionsTab
             patientId={patientId}
+            patientName={patient?.full_name}
             onRequestNewPlan={() => {
               setAutoOpenCreatePlan(true)
               setActiveTab('planos')

@@ -41,19 +41,14 @@ export function useTreatmentPlans(patientId?: string) {
       .single()
     if (!error && data) {
       setPlans(prev => [data, ...prev])
-      // Create sessions automatically with weekly dates
-      const startDate = new Date(data.start_date + 'T12:00:00')
-      const sessionsToCreate = Array.from({ length: data.total_sessions }, (_, i) => {
-        const sessionDate = new Date(startDate)
-        sessionDate.setDate(sessionDate.getDate() + i * 7)
-        return {
-          plan_id: data.id,
-          patient_id: data.patient_id,
-          professional_id: data.professional_id,
-          session_number: i + 1,
-          session_date: sessionDate.toISOString().split('T')[0],
-        }
-      })
+      // Create sessions without dates (dates set when appointments are scheduled)
+      const sessionsToCreate = Array.from({ length: data.total_sessions }, (_, i) => ({
+        plan_id: data.id,
+        patient_id: data.patient_id,
+        professional_id: data.professional_id,
+        session_number: i + 1,
+        session_date: null,
+      }))
       await supabase.from('treatment_sessions').insert(sessionsToCreate)
     }
     return { data, error }

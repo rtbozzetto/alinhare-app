@@ -19,11 +19,13 @@ import {
 } from '@/components/ui/dialog'
 import { BODY_REGIONS, PHOTO_TYPES } from '@/lib/constants'
 import { toast } from 'sonner'
-import { Check, Eye, Plus, Trash2, Camera, Brain, Loader2, AlertTriangle, X, Upload, PartyPopper } from 'lucide-react'
+import { Check, Eye, Plus, Trash2, Camera, Brain, Loader2, AlertTriangle, X, Upload, PartyPopper, CalendarPlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { AppointmentFormDialog } from '@/components/appointments/appointment-form-dialog'
 
 interface SessionsTabProps {
   patientId: string
+  patientName?: string
   onRequestNewPlan?: () => void
 }
 
@@ -34,7 +36,7 @@ const PHOTO_TYPE_LABELS: Record<string, string> = {
   lateral_esquerda: 'Lateral E',
 }
 
-export function SessionsTab({ patientId, onRequestNewPlan }: SessionsTabProps) {
+export function SessionsTab({ patientId, patientName, onRequestNewPlan }: SessionsTabProps) {
   const { plans, sessions, loading, fetchPlans, fetchSessions, updateSession } =
     useTreatmentPlans(patientId)
   const supabase = createClient()
@@ -55,6 +57,8 @@ export function SessionsTab({ patientId, onRequestNewPlan }: SessionsTabProps) {
 
   const [saving, setSaving] = useState(false)
   const [celebrationDismissed, setCelebrationDismissed] = useState<Set<string>>(new Set())
+  const [scheduleSessionOpen, setScheduleSessionOpen] = useState(false)
+  const [schedulingSession, setSchedulingSession] = useState<TreatmentSession | null>(null)
 
   // Photo states
   const [sessionPhotos, setSessionPhotos] = useState<PatientPhoto[]>([])
@@ -620,6 +624,18 @@ export function SessionsTab({ patientId, onRequestNewPlan }: SessionsTabProps) {
                                 return isNaN(d.getTime()) ? 'Sem data' : d.toLocaleDateString('pt-BR', { timeZone: 'UTC' })
                               })()}
                             </p>
+                          ) : !session.completed ? (
+                            <button
+                              type="button"
+                              className="flex items-center gap-1 text-xs text-teal-600 hover:text-teal-800 transition-colors"
+                              onClick={() => {
+                                setSchedulingSession(session)
+                                setScheduleSessionOpen(true)
+                              }}
+                            >
+                              <CalendarPlus className="h-3 w-3" />
+                              Agendar
+                            </button>
                           ) : (
                             <p className="text-xs text-muted-foreground">Sem data</p>
                           )}
@@ -1036,6 +1052,22 @@ export function SessionsTab({ patientId, onRequestNewPlan }: SessionsTabProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Schedule session appointment */}
+      <AppointmentFormDialog
+        open={scheduleSessionOpen}
+        onClose={() => {
+          setScheduleSessionOpen(false)
+          if (schedulingSession) {
+            // Refresh sessions to update dates
+            fetchSessions()
+          }
+          setSchedulingSession(null)
+        }}
+        defaultPatientId={patientId}
+        defaultPatientName={patientName}
+        defaultProfessionalId={schedulingSession?.professional_id}
+      />
     </div>
   )
 }
