@@ -679,7 +679,7 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
               </div>
 
               {form.plan_type !== 'avaliacao' && (
-                <div className="space-y-2">
+                <div className="space-y-2 md:col-span-2">
                   <Label>Plano *</Label>
                   <Select
                     value={form.selected_price_id}
@@ -928,7 +928,7 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
               </div>
 
               {editForm.plan_type !== 'avaliacao' && (
-                <div className="space-y-2">
+                <div className="space-y-2 sm:col-span-2">
                   <Label>Plano</Label>
                   <Select
                     value={editForm.selected_price_id}
