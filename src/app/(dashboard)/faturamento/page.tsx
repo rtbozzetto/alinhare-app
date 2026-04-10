@@ -53,7 +53,7 @@ function BillingContent() {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [filterProfId, setFilterProfId] = useState<string>('all')
 
-  const { appointments, paidPlans, closings, fetchAppointmentsByMonth, fetchClosings, closeMonth, reopenMonth, deleteAppointment, loading } =
+  const { appointments, paidPlans, completedSessions, closings, fetchAppointmentsByMonth, fetchClosings, closeMonth, reopenMonth, deleteAppointment, loading } =
     useBilling()
   const { activeProfessionals } = useProfessionals()
 
@@ -79,6 +79,11 @@ function BillingContent() {
     return paidPlans.filter(p => p.professional_id === filterProfId)
   }, [paidPlans, filterProfId])
 
+  const filteredSessions = useMemo(() => {
+    if (filterProfId === 'all') return completedSessions
+    return completedSessions.filter(s => s.professional_id === filterProfId)
+  }, [completedSessions, filterProfId])
+
   const totals = useMemo(() => {
     const apptBruto = filteredAppointments.reduce((sum, a) => sum + (a.custom_price ?? 0), 0)
     const apptDesconto = filteredAppointments.reduce((sum, a) => sum + a.discount_amount, 0)
@@ -92,14 +97,20 @@ function BillingContent() {
     const planRepasse = filteredPlans.reduce((sum, p) => sum + p.commission_amount, 0)
     const planClinica = filteredPlans.reduce((sum, p) => sum + p.clinic_amount, 0)
 
+    const sessBruto = filteredSessions.reduce((sum, s) => sum + s.price, 0)
+    const sessDesconto = filteredSessions.reduce((sum, s) => sum + s.discount_amount, 0)
+    const sessLiquido = filteredSessions.reduce((sum, s) => sum + s.final_paid_amount, 0)
+    const sessRepasse = filteredSessions.reduce((sum, s) => sum + s.commission_amount, 0)
+    const sessClinica = filteredSessions.reduce((sum, s) => sum + s.clinic_amount, 0)
+
     return {
-      bruto: apptBruto + planBruto,
-      desconto: apptDesconto + planDesconto,
-      liquido: apptLiquido + planLiquido,
-      repasse: apptRepasse + planRepasse,
-      clinica: apptClinica + planClinica,
+      bruto: apptBruto + planBruto + sessBruto,
+      desconto: apptDesconto + planDesconto + sessDesconto,
+      liquido: apptLiquido + planLiquido + sessLiquido,
+      repasse: apptRepasse + planRepasse + sessRepasse,
+      clinica: apptClinica + planClinica + sessClinica,
     }
-  }, [filteredAppointments, filteredPlans])
+  }, [filteredAppointments, filteredPlans, filteredSessions])
 
   async function handleCloseMonth() {
     const { error } = await closeMonth(refMonth, {
@@ -108,8 +119,8 @@ function BillingContent() {
       total_liquido: totals.liquido,
       total_repasse: totals.repasse,
       total_clinica: totals.clinica,
-      total_appointments: filteredAppointments.length + filteredPlans.length,
-      snapshot: [...filteredPlans.map(p => ({ ...p, _source: 'plan' })), ...filteredAppointments],
+      total_appointments: filteredAppointments.length + filteredPlans.length + filteredSessions.length,
+      snapshot: [...filteredPlans.map(p => ({ ...p, _source: 'plan' })), ...filteredSessions.map(s => ({ ...s, _source: 'session' })), ...filteredAppointments],
     })
     if (error) {
       toast.error('Erro ao fechar mes.')
@@ -235,7 +246,7 @@ function BillingContent() {
         <div className="flex justify-center py-12">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-600 border-t-transparent" />
         </div>
-      ) : filteredAppointments.length === 0 && filteredPlans.length === 0 ? (
+      ) : filteredAppointments.length === 0 && filteredPlans.length === 0 && filteredSessions.length === 0 ? (
         <div className="py-12 text-center text-muted-foreground">
           Nenhum registro neste periodo.
         </div>
@@ -282,6 +293,36 @@ function BillingContent() {
                 <TableCell>
                   <Badge variant="default">
                     {PAYMENT_STATUSES.find(s => s.value === plan.payment_status)?.label ?? plan.payment_status}
+                  </Badge>
+                </TableCell>
+                {!isClosed && <TableCell />}
+              </TableRow>
+            ))}
+            {/* Completed sessions without appointments */}
+            {filteredSessions.map(sess => (
+              <TableRow key={`sess-${sess.id}`} className="bg-amber-50/30">
+                <TableCell className="whitespace-nowrap">
+                  {new Date(sess.session_date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                </TableCell>
+                <TableCell className="whitespace-nowrap">{sess.patient_name}</TableCell>
+                <TableCell className="whitespace-nowrap">{sess.professional_name}</TableCell>
+                <TableCell>
+                  <span className="flex items-center gap-1">
+                    <Badge variant="outline" className="text-[10px] px-1 py-0">Sessão</Badge>
+                    {sess.plan_name}
+                  </span>
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                  {sess.session_number} de {sess.total_sessions}
+                </TableCell>
+                <TableCell>{formatCurrency(sess.price)}</TableCell>
+                <TableCell>{formatCurrency(sess.discount_amount)}</TableCell>
+                <TableCell>{formatCurrency(sess.final_paid_amount)}</TableCell>
+                <TableCell>{formatCurrency(sess.commission_amount)}</TableCell>
+                <TableCell>{formatCurrency(sess.clinic_amount)}</TableCell>
+                <TableCell>
+                  <Badge variant={sess.payment_status === 'pago' || sess.payment_status === 'pago_pacote' ? 'default' : 'secondary'}>
+                    {PAYMENT_STATUSES.find(s => s.value === sess.payment_status)?.label ?? sess.payment_status}
                   </Badge>
                 </TableCell>
                 {!isClosed && <TableCell />}

@@ -20,10 +20,30 @@ export interface BillingPlanRow {
   lead_source: string
 }
 
+export interface BillingSessionRow {
+  id: string
+  session_date: string
+  session_number: number
+  total_sessions: number
+  patient_name: string
+  professional_name: string
+  professional_id: string
+  plan_name: string
+  plan_type: string
+  price: number
+  discount_amount: number
+  final_paid_amount: number
+  payment_status: string
+  commission_amount: number
+  clinic_amount: number
+  lead_source: string
+}
+
 export function useBilling() {
   const [closings, setClosings] = useState<MonthlyClosing[]>([])
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [paidPlans, setPaidPlans] = useState<BillingPlanRow[]>([])
+  const [completedSessions, setCompletedSessions] = useState<BillingSessionRow[]>([])
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
 
@@ -112,6 +132,64 @@ export function useBilling() {
         lead_source: p.lead_source,
       })))
     }
+
+    // Fetch completed sessions in this month that DON'T have a matching appointment
+    // These are sessions marked as done directly without scheduling
+    const { data: sessionsData } = await supabase
+      .from('treatment_sessions')
+      .select('*, plan:treatment_plans(*, patient:patients(full_name), professional:professionals!professional_id(id, full_name))')
+      .eq('completed', true)
+      .gte('session_date', startDate)
+      .lte('session_date', endDate)
+      .order('session_date')
+
+    if (sessionsData && data) {
+      // Get appointment session_ids to exclude sessions that already have appointments
+      const appointmentSessionIds = new Set(
+        data.filter((a: any) => a.session_id).map((a: any) => a.session_id)
+      )
+      // Also exclude sessions from plans already shown as paid plan rows
+      const paidPlanIds = new Set(
+        (plans || []).map((p: any) => p.id)
+      )
+
+      const sessionsWithoutAppt = sessionsData.filter((s: any) =>
+        !appointmentSessionIds.has(s.id) &&
+        !paidPlanIds.has(s.plan_id) &&
+        s.plan
+      )
+
+      setCompletedSessions(sessionsWithoutAppt.map((s: any) => {
+        const plan = s.plan
+        const totalSessions = plan.total_sessions || 1
+        const perSessionPrice = plan.price / totalSessions
+        const perSessionDiscount = plan.discount_amount / totalSessions
+        const perSessionFinal = plan.final_paid_amount / totalSessions
+        const perSessionCommission = plan.commission_amount / totalSessions
+        const perSessionClinic = plan.clinic_amount / totalSessions
+
+        return {
+          id: s.id,
+          session_date: s.session_date,
+          session_number: s.session_number,
+          total_sessions: totalSessions,
+          patient_name: plan.patient?.full_name ?? '-',
+          professional_name: plan.professional?.full_name ?? '-',
+          professional_id: plan.professional_id,
+          plan_name: plan.plan_name,
+          plan_type: plan.plan_type,
+          price: Math.round(perSessionPrice * 100) / 100,
+          discount_amount: Math.round(perSessionDiscount * 100) / 100,
+          final_paid_amount: Math.round(perSessionFinal * 100) / 100,
+          payment_status: plan.payment_status,
+          commission_amount: Math.round(perSessionCommission * 100) / 100,
+          clinic_amount: Math.round(perSessionClinic * 100) / 100,
+          lead_source: plan.lead_source,
+        }
+      }))
+    } else {
+      setCompletedSessions([])
+    }
   }, [supabase])
 
   const closeMonth = async (
@@ -173,6 +251,7 @@ export function useBilling() {
     closings,
     appointments,
     paidPlans,
+    completedSessions,
     loading,
     fetchClosings,
     fetchAppointmentsByMonth,
