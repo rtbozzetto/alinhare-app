@@ -80,6 +80,10 @@ export function AppointmentFormDialog({
   const [activePlan, setActivePlan] = useState<TreatmentPlan | null>(null)
   const [nextSession, setNextSession] = useState<{ number: number; total: number } | null>(null)
 
+  // Existing appointments for patient
+  const [existingAppts, setExistingAppts] = useState<Array<{ id: string; date: string; time: string; type: string }>>([])
+  const [showExistingAlert, setShowExistingAlert] = useState(false)
+
   const [form, setForm] = useState({
     patient_id: '',
     professional_id: '',
@@ -195,9 +199,32 @@ export function AppointmentFormDialog({
     }
   }
 
-  // Fetch active plan when patient is selected (new appointments only)
+  // Fetch active plan and existing appointments when patient is selected (new appointments only)
   async function fetchActivePlan(patientId: string) {
     if (isEdit) return
+
+    // Check for existing upcoming appointments for this patient
+    const today = new Date().toISOString().split('T')[0]
+    const { data: existingData } = await supabase
+      .from('appointments')
+      .select('id, appointment_date, appointment_time, appointment_type')
+      .eq('patient_id', patientId)
+      .gte('appointment_date', today)
+      .neq('status', 'cancelada')
+      .order('appointment_date')
+
+    if (existingData && existingData.length > 0) {
+      setExistingAppts(existingData.map(a => ({
+        id: a.id,
+        date: a.appointment_date,
+        time: a.appointment_time?.slice(0, 5) ?? '',
+        type: a.appointment_type,
+      })))
+      setShowExistingAlert(true)
+    } else {
+      setExistingAppts([])
+      setShowExistingAlert(false)
+    }
 
     const { data: plans } = await supabase
       .from('treatment_plans')
@@ -570,6 +597,35 @@ export function AppointmentFormDialog({
           {activePlan && !isEdit && (
             <div className="rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-800">
               <span className="font-medium">Plano ativo:</span> {activePlan.plan_name} — {activePlan.total_sessions} sessoes ({activePlan.payment_status === 'pago' ? 'Pago' : activePlan.payment_status === 'pago_pacote' ? 'Pago (pacote)' : 'Nao pago'})
+            </div>
+          )}
+
+          {/* Existing appointments alert */}
+          {showExistingAlert && existingAppts.length > 0 && !isEdit && (
+            <div className="rounded-md border border-orange-300 bg-orange-50 p-3 space-y-2">
+              <p className="text-sm font-medium text-orange-800">⚠ Este paciente já possui {existingAppts.length} agendamento(s) futuro(s):</p>
+              <div className="max-h-32 overflow-y-auto rounded border divide-y bg-white">
+                {existingAppts.map(a => (
+                  <div key={a.id} className="flex items-center justify-between px-3 py-1.5 text-sm">
+                    <span className="font-medium">
+                      {new Date(a.date + 'T12:00:00').toLocaleDateString('pt-BR')} às {a.time}
+                    </span>
+                    <span className="text-muted-foreground text-xs">
+                      {APPOINTMENT_TYPES.find(t => t.value === a.type)?.label ?? a.type}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-orange-700">Você pode continuar criando um novo agendamento ou fechar este formulário.</p>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="text-xs text-orange-600"
+                onClick={() => setShowExistingAlert(false)}
+              >
+                Entendi, continuar
+              </Button>
             </div>
           )}
 
