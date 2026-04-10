@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useAuth } from '@/hooks/use-auth'
 import { useUserRole } from '@/hooks/use-user-role'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -20,7 +19,6 @@ import {
   DollarSign,
   UserCog,
   MessageCircle,
-  LogOut,
   Tag,
   Menu,
   Settings,
@@ -37,7 +35,6 @@ const navItems = [
 
 function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
-  const { signOut } = useAuth()
   const { isAdmin } = useUserRole()
 
   const visibleItems = navItems.filter(item => !item.adminOnly || isAdmin)
@@ -69,7 +66,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
         })}
       </nav>
 
-      <div className="border-t p-2 space-y-1">
+      <div className="border-t p-2">
         <Link href="/configuracoes" onClick={onNavigate}>
           <Button
             variant="ghost"
@@ -82,14 +79,6 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
             Configurações
           </Button>
         </Link>
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-2 h-11 text-muted-foreground"
-          onClick={() => signOut()}
-        >
-          <LogOut className="h-4 w-4" />
-          Sair
-        </Button>
       </div>
     </>
   )
