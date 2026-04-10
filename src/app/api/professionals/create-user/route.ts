@@ -40,26 +40,26 @@ export async function POST(request: Request) {
         // Link existing user
         await adminClient.from('professionals').update({ auth_user_id: existing.id }).eq('id', professional_id)
         await adminClient.from('user_roles').upsert({ user_id: existing.id, role: 'profissional' }, { onConflict: 'user_id,role' })
-        // Generate recovery link (this sends the email automatically)
+
+        // Send recovery email (this sends the email AND generates the token)
+        const { error: resetError } = await adminClient.auth.resetPasswordForEmail(email, {
+          redirectTo: `${siteUrl}/auth/callback?next=/reset-password?type=recovery`,
+        })
+        console.log('[create-user] existing user resetPasswordForEmail:', resetError?.message || 'ok')
+
+        // Generate link as fallback for manual sharing (MUST be last to keep token valid)
         const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
           type: 'recovery',
           email,
           options: { redirectTo: `${siteUrl}/auth/callback?next=/reset-password?type=recovery` },
         })
-        console.error('[create-user] existing user generateLink:', linkError?.message || 'ok', linkData?.properties?.action_link ? 'link generated' : 'no link')
-
-        // Also send via resetPasswordForEmail as backup
-        const { error: resetError } = await adminClient.auth.resetPasswordForEmail(email, {
-          redirectTo: `${siteUrl}/auth/callback?next=/reset-password?type=recovery`,
-        })
-        console.error('[create-user] existing user resetPasswordForEmail:', resetError?.message || 'ok')
+        console.log('[create-user] existing user generateLink:', linkError?.message || 'ok')
 
         return NextResponse.json({
           success: true,
           user_id: existing.id,
           already_existed: true,
           recovery_link: linkData?.properties?.action_link || null,
-          email_error: resetError?.message || linkError?.message || null,
         })
       }
       return NextResponse.json({ error: authError.message }, { status: 400 })
@@ -69,26 +69,25 @@ export async function POST(request: Request) {
     await adminClient.from('professionals').update({ auth_user_id: authData.user.id }).eq('id', professional_id)
     await adminClient.from('user_roles').insert({ user_id: authData.user.id, role: 'profissional' })
 
-    // 5. Generate recovery link (sends email) so professional can set password
+    // 5. Send recovery email so professional can set password
+    const { error: resetError } = await adminClient.auth.resetPasswordForEmail(email, {
+      redirectTo: `${siteUrl}/auth/callback?next=/reset-password?type=recovery`,
+    })
+    console.log('[create-user] resetPasswordForEmail:', resetError?.message || 'ok')
+
+    // 6. Generate link as fallback for manual sharing (MUST be last to keep token valid)
     const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
       type: 'recovery',
       email,
       options: { redirectTo: `${siteUrl}/auth/callback?next=/reset-password?type=recovery` },
     })
-    console.log('[create-user] generateLink:', linkError?.message || 'ok', linkData?.properties?.action_link ? 'link generated' : 'no link')
-
-    // Also send via resetPasswordForEmail as backup (this definitely sends the email)
-    const { error: resetError } = await adminClient.auth.resetPasswordForEmail(email, {
-      redirectTo: `${siteUrl}/auth/callback?next=/reset-password?type=recovery`,
-    })
-    console.log('[create-user] resetPasswordForEmail:', resetError?.message || 'ok')
+    console.log('[create-user] generateLink:', linkError?.message || 'ok')
 
     return NextResponse.json({
       success: true,
       user_id: authData.user.id,
       already_existed: false,
       recovery_link: linkData?.properties?.action_link || null,
-      email_error: resetError?.message || linkError?.message || null,
     })
   } catch (err) {
     console.error('[create-user] unexpected error:', err)

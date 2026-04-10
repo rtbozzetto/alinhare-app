@@ -26,8 +26,10 @@ export async function GET(request: Request) {
     if (!error) {
       return NextResponse.redirect(`${origin}${next}`)
     }
+    console.error('[auth/callback] exchangeCodeForSession error:', error.message)
   }
 
-  // Fallback: redirect to reset password page
-  return NextResponse.redirect(`${origin}/reset-password?type=recovery`)
+  // IMPORTANT: On failure, redirect to LOGIN, not reset-password
+  // Otherwise updateUser could change the wrong user's password
+  return NextResponse.redirect(`${origin}/login?error=link_expirado`)
 }
