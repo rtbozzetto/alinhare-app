@@ -181,7 +181,7 @@ export function ExamsTab({ patientId }: ExamsTabProps) {
             />
           </div>
           <div>
-            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors hover:border-teal-400 hover:bg-teal-50/50">
+            <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 sm:p-6 sm:flex-row transition-colors hover:border-teal-400 hover:bg-teal-50/50">
               {uploading ? (
                 <div className="flex items-center gap-2">
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-teal-600 border-t-transparent" />
@@ -190,8 +190,8 @@ export function ExamsTab({ patientId }: ExamsTabProps) {
               ) : (
                 <>
                   <Upload className="h-5 w-5 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">
-                    Clique para enviar arquivo (PDF, imagem, etc.)
+                  <span className="text-sm text-muted-foreground text-center">
+                    Clique para enviar arquivo (PDF, imagem)
                   </span>
                 </>
               )}
@@ -219,47 +219,51 @@ export function ExamsTab({ patientId }: ExamsTabProps) {
         <div className="grid gap-3">
           {exams.map(exam => (
             <Card key={exam.id}>
-              <CardContent className="flex items-center justify-between p-4">
-                <div className="flex items-center gap-3">
-                  <FileText className="h-8 w-8 text-teal-600" />
-                  <div>
-                    <p className="font-medium">{exam.file_name}</p>
+              <CardContent className="p-4 space-y-3">
+                {/* Info row */}
+                <div className="flex items-start gap-3">
+                  <FileText className="h-8 w-8 text-teal-600 shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm truncate">{exam.file_name}</p>
                     {exam.exam_description && (
-                      <p className="text-sm text-muted-foreground">{exam.exam_description}</p>
+                      <p className="text-sm text-muted-foreground truncate">{exam.exam_description}</p>
                     )}
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(exam.created_at).toLocaleDateString('pt-BR')}
-                    </p>
-                    {exam.ai_analysis && (
-                      <Badge variant="default" className="mt-1 bg-purple-600">
-                        <Brain className="mr-1 h-3 w-3" />
-                        Analisado por IA
-                      </Badge>
-                    )}
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(exam.created_at).toLocaleDateString('pt-BR')}
+                      </p>
+                      {exam.ai_analysis && (
+                        <Badge variant="default" className="bg-purple-600 text-[10px] px-1.5 py-0">
+                          <Brain className="mr-1 h-2.5 w-2.5" />
+                          IA
+                        </Badge>
+                      )}
+                    </div>
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                    onClick={() => handleDelete(exam)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
-                <div className="flex items-center gap-2">
+                {/* Actions row */}
+                <div className="flex flex-wrap gap-2">
                   <Button
                     variant="outline"
                     size="sm"
+                    className="h-8 text-xs"
                     onClick={() => handleOpenFile(exam.file_url)}
                   >
                     <ExternalLink className="mr-1 h-3 w-3" />
                     Abrir
                   </Button>
-                  {exam.ai_analysis && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openDetail(exam)}
-                    >
-                      <Brain className="mr-1 h-3 w-3" />
-                      Ver analise
-                    </Button>
-                  )}
                   <Button
                     variant="outline"
                     size="sm"
+                    className="h-8 text-xs"
                     onClick={() => handleAnalyze(exam)}
                     disabled={analyzingId === exam.id}
                   >
@@ -275,13 +279,17 @@ export function ExamsTab({ patientId }: ExamsTabProps) {
                       </>
                     )}
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(exam)}
-                  >
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </Button>
+                  {exam.ai_analysis && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs"
+                      onClick={() => openDetail(exam)}
+                    >
+                      <Brain className="mr-1 h-3 w-3" />
+                      Ver análise
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
