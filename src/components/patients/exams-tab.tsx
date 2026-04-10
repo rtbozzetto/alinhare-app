@@ -299,18 +299,18 @@ export function ExamsTab({ patientId }: ExamsTabProps) {
 
       {/* AI Analysis Detail Dialog */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] flex flex-col sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Analise IA - {selectedExam?.file_name}</DialogTitle>
+            <DialogTitle>Análise IA - {selectedExam?.file_name}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-2">
+          <div className="space-y-2 overflow-y-auto flex-1 min-h-0">
             {selectedExam?.exam_description && (
               <p className="text-sm text-muted-foreground">
                 {selectedExam.exam_description}
               </p>
             )}
             <div className="rounded-lg bg-gray-50 p-4 text-sm whitespace-pre-wrap">
-              {selectedExam?.ai_analysis ?? 'Sem analise disponivel.'}
+              {selectedExam?.ai_analysis ?? 'Sem análise disponível.'}
             </div>
             {selectedExam?.analyzed_at && (
               <p className="text-xs text-muted-foreground">

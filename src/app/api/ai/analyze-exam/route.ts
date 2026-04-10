@@ -137,7 +137,7 @@ Seja objetivo, técnico e prático nas recomendações.`
       ],
       generationConfig: {
         temperature: 0.3,
-        maxOutputTokens: 4096,
+        maxOutputTokens: 8192,
       },
     })
 
