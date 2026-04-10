@@ -124,9 +124,9 @@ Sugestões adicionais (outros exames, encaminhamentos, acompanhamento).
 
 Seja objetivo, técnico e prático nas recomendações.`
 
-    // Call Gemini with retry for rate limits
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`
-    const geminiBody = JSON.stringify({
+    // Try multiple Gemini models (fallback on rate limit)
+    const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b']
+    const requestBody = JSON.stringify({
       contents: [
         {
           parts: [
@@ -142,35 +142,54 @@ Seja objetivo, técnico e prático nas recomendações.`
     })
 
     let geminiResponse: Response | null = null
-    for (let attempt = 0; attempt < 3; attempt++) {
-      geminiResponse = await fetch(geminiUrl, {
+    let lastError = ''
+    let usedModel = ''
+
+    for (const model of models) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+
+      geminiResponse = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: geminiBody,
+        body: requestBody,
       })
 
-      if (geminiResponse.status === 429 && attempt < 2) {
-        // Rate limited — wait and retry
-        const waitSec = (attempt + 1) * 5
-        console.log(`Gemini rate limited, waiting ${waitSec}s before retry ${attempt + 2}/3`)
-        await new Promise(r => setTimeout(r, waitSec * 1000))
+      if (geminiResponse.ok) {
+        usedModel = model
+        break
+      }
+
+      lastError = await geminiResponse.text()
+      console.error(`Gemini ${model} error (${geminiResponse.status}):`, lastError)
+
+      if (geminiResponse.status === 429) {
+        // Rate limited on this model, try next
+        console.log(`Rate limited on ${model}, trying next model...`)
         continue
       }
+
+      // For non-429 errors, don't try other models
       break
     }
 
     if (!geminiResponse || !geminiResponse.ok) {
-      const errText = geminiResponse ? await geminiResponse.text() : 'No response'
-      console.error('Gemini API error:', errText)
       const status = geminiResponse?.status ?? 502
-      const msg = status === 429
-        ? 'Limite de requisições do Gemini atingido. Aguarde alguns minutos e tente novamente.'
-        : `Erro na API Gemini: ${status}`
+      let msg: string
+      if (status === 429) {
+        msg = 'Limite do Gemini atingido em todos os modelos. Verifique sua cota em aistudio.google.com'
+      } else if (status === 403) {
+        msg = 'API key sem permissão. Verifique se a Generative Language API está ativada no Google Cloud.'
+      } else if (status === 400) {
+        msg = `Erro na requisição: ${lastError.slice(0, 200)}`
+      } else {
+        msg = `Erro na API Gemini: ${status}`
+      }
       return NextResponse.json({ error: msg }, { status: 502 })
     }
 
     const data = await geminiResponse.json()
     const analysisText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+    console.log(`Exam analysis completed using model: ${usedModel}`)
 
     if (!analysisText) {
       return NextResponse.json({ error: 'A IA não gerou análise. Tente novamente.' }, { status: 502 })
