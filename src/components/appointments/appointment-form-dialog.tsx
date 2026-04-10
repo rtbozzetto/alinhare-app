@@ -404,6 +404,22 @@ export function AppointmentFormDialog({
       if (error) {
         toast.error(`Erro ao criar agendamento: ${error.message || 'erro desconhecido'}`)
       } else {
+        // Sync next pending session date with appointment date
+        if (activePlan && form.appointment_date) {
+          const { data: pendingSessions } = await supabase
+            .from('treatment_sessions')
+            .select('id')
+            .eq('plan_id', activePlan.id)
+            .eq('completed', false)
+            .order('session_number')
+            .limit(1)
+          if (pendingSessions && pendingSessions.length > 0) {
+            await supabase
+              .from('treatment_sessions')
+              .update({ session_date: form.appointment_date })
+              .eq('id', pendingSessions[0].id)
+          }
+        }
         toast.success('Agendamento criado!')
         setConflictWarning(null)
         setConflictConfirmed(false)
