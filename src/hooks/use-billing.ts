@@ -78,6 +78,14 @@ export function useBilling() {
     return { data, error }
   }
 
+  const deleteAppointment = async (id: string) => {
+    const { error } = await supabase.from('appointments').delete().eq('id', id)
+    if (!error) {
+      setAppointments(prev => prev.filter(a => a.id !== id))
+    }
+    return { error }
+  }
+
   return {
     closings,
     appointments,
@@ -86,5 +94,6 @@ export function useBilling() {
     fetchAppointmentsByMonth,
     closeMonth,
     reopenMonth,
+    deleteAppointment,
   }
 }

@@ -24,7 +24,18 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { ChevronLeft, ChevronRight, FileDown, Lock, Unlock } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import { ChevronLeft, ChevronRight, FileDown, Lock, Unlock, Trash2 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { APPOINTMENT_TYPES, PAYMENT_STATUSES } from '@/lib/constants'
 import { generateBillingPdf } from '@/lib/pdf'
@@ -42,7 +53,7 @@ function BillingContent() {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [filterProfId, setFilterProfId] = useState<string>('all')
 
-  const { appointments, closings, fetchAppointmentsByMonth, fetchClosings, closeMonth, reopenMonth, loading } =
+  const { appointments, closings, fetchAppointmentsByMonth, fetchClosings, closeMonth, reopenMonth, deleteAppointment, loading } =
     useBilling()
   const { activeProfessionals } = useProfessionals()
 
@@ -225,6 +236,7 @@ function BillingContent() {
               <TableHead className="whitespace-nowrap">Comissao</TableHead>
               <TableHead className="whitespace-nowrap">Clinica</TableHead>
               <TableHead className="whitespace-nowrap">Pagamento</TableHead>
+              {!isClosed && <TableHead className="w-10"></TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -248,6 +260,44 @@ function BillingContent() {
                     {PAYMENT_STATUSES.find(s => s.value === appt.payment_status)?.label ?? appt.payment_status}
                   </Badge>
                 </TableCell>
+                {!isClosed && (
+                  <TableCell>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Excluir registro</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Tem certeza que deseja excluir o registro de{' '}
+                            <strong>{appt.patient?.full_name}</strong> do dia{' '}
+                            <strong>{new Date(appt.appointment_date + 'T12:00:00').toLocaleDateString('pt-BR')}</strong>?
+                            Esta ação não pode ser desfeita.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-red-600 hover:bg-red-700"
+                            onClick={async () => {
+                              const { error } = await deleteAppointment(appt.id)
+                              if (error) {
+                                toast.error('Erro ao excluir registro.')
+                              } else {
+                                toast.success('Registro excluído.')
+                              }
+                            }}
+                          >
+                            Excluir
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>
