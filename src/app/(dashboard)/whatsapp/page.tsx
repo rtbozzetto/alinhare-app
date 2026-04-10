@@ -162,22 +162,23 @@ function WhatsAppContent() {
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <CardTitle className="text-lg">{getProfName(profId)}</CardTitle>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                   <Button
                     variant="outline"
                     size="sm"
+                    className="h-8 text-xs"
                     onClick={() => handleCopyProfSummary(profId)}
                   >
                     <Copy className="mr-1 h-3 w-3" />
-                    Copiar resumo
+                    Copiar
                   </Button>
                   <Button
                     size="sm"
-                    className="bg-green-600 hover:bg-green-700"
+                    className="h-8 text-xs bg-green-600 hover:bg-green-700"
                     onClick={() => handleSendProfSummary(profId)}
                   >
                     <Send className="mr-1 h-3 w-3" />
-                    Enviar resumo
+                    Enviar
                   </Button>
                 </div>
               </div>
@@ -201,18 +202,20 @@ function WhatsAppContent() {
                           {time} - <Badge variant="secondary">{statusLabel}</Badge>
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                         <Button
                           variant="ghost"
-                          size="sm"
+                          size="icon"
+                          className="h-8 w-8"
                           onClick={() => setShowPreview(prev => ({ ...prev, [appt.id]: !prev[appt.id] }))}
                           title={isEditing ? 'Esconder mensagem' : 'Ver/editar mensagem'}
                         >
-                          {isEditing ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                          {isEditing ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
+                          className="h-8 text-xs"
                           onClick={() => handleCopyMessage(appt)}
                         >
                           <Copy className="mr-1 h-3 w-3" />
@@ -220,7 +223,7 @@ function WhatsAppContent() {
                         </Button>
                         <Button
                           size="sm"
-                          className="bg-green-600 hover:bg-green-700"
+                          className="h-8 text-xs bg-green-600 hover:bg-green-700"
                           onClick={() => handleSendWhatsApp(appt)}
                         >
                           <MessageCircle className="mr-1 h-3 w-3" />

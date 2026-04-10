@@ -223,12 +223,12 @@ export default function AgendaPage() {
         </div>
       ) : (
         <div className="overflow-auto">
-          <div className="min-w-[600px]">
+          <div className={cn("min-w-[340px]", days.length > 1 && "min-w-[600px]")}>
             {/* Header */}
-            <div className="grid border-b" style={{ gridTemplateColumns: `80px repeat(${days.length}, 1fr)` }}>
-              <div className="p-2 text-xs font-medium text-muted-foreground">Hora</div>
+            <div className="grid border-b" style={{ gridTemplateColumns: `${days.length === 1 ? '50px' : '80px'} repeat(${days.length}, 1fr)` }}>
+              <div className="p-1 sm:p-2 text-xs font-medium text-muted-foreground">Hora</div>
               {days.map(day => (
-                <div key={day.toISOString()} className="border-l p-2 text-center text-xs font-medium">
+                <div key={day.toISOString()} className="border-l p-1 sm:p-2 text-center text-xs font-medium">
                   {format(day, viewMode === 'day' ? 'EEEE' : 'EEE d', { locale: ptBR })}
                 </div>
               ))}
@@ -238,9 +238,9 @@ export default function AgendaPage() {
               <div
                 key={time}
                 className="grid border-b"
-                style={{ gridTemplateColumns: `80px repeat(${days.length}, 1fr)` }}
+                style={{ gridTemplateColumns: `${days.length === 1 ? '50px' : '80px'} repeat(${days.length}, 1fr)` }}
               >
-                <div className="p-2 text-xs text-muted-foreground">{time}</div>
+                <div className="p-1 sm:p-2 text-xs text-muted-foreground">{time}</div>
                 {days.map(day => {
                   const slotAppts = getAppointmentsForSlot(day, time)
                   return (

@@ -179,7 +179,7 @@ export function PatientForm({ patient }: PatientFormProps) {
               <Input
                 placeholder="DD"
                 maxLength={2}
-                className="w-16 text-center"
+                className="w-14 sm:w-16 text-center"
                 value={form.birth_date ? form.birth_date.split('-')[2] || '' : ''}
                 onChange={e => {
                   const day = e.target.value.replace(/\D/g, '').slice(0, 2)
@@ -191,7 +191,7 @@ export function PatientForm({ patient }: PatientFormProps) {
               <Input
                 placeholder="MM"
                 maxLength={2}
-                className="w-16 text-center"
+                className="w-14 sm:w-16 text-center"
                 value={form.birth_date ? form.birth_date.split('-')[1] || '' : ''}
                 onChange={e => {
                   const month = e.target.value.replace(/\D/g, '').slice(0, 2)
@@ -203,7 +203,7 @@ export function PatientForm({ patient }: PatientFormProps) {
               <Input
                 placeholder="AAAA"
                 maxLength={4}
-                className="w-20 text-center"
+                className="w-16 sm:w-20 text-center"
                 value={form.birth_date ? form.birth_date.split('-')[0] || '' : ''}
                 onChange={e => {
                   const year = e.target.value.replace(/\D/g, '').slice(0, 4)
@@ -472,7 +472,7 @@ export function PatientForm({ patient }: PatientFormProps) {
       </Card>
 
       {/* Submit */}
-      <div className="sticky bottom-0 -mx-4 bg-background border-t p-4 sm:static sm:mx-0 sm:border-0 sm:p-0 flex justify-end">
+      <div className="sticky bottom-0 -mx-2 sm:-mx-4 bg-background border-t p-3 sm:p-4 sm:static sm:mx-0 sm:border-0 sm:p-0 flex justify-end">
         <Button type="submit" className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700" disabled={saving}>
           <Save className="mr-2 h-4 w-4" />
           {saving ? 'Salvando...' : isEdit ? 'Salvar Alteracoes' : 'Cadastrar Paciente'}

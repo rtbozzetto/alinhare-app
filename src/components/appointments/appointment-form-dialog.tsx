@@ -648,12 +648,12 @@ export function AppointmentFormDialog({
               <p className="text-sm font-medium text-orange-800">⚠ Este paciente já possui {existingAppts.length} agendamento(s) futuro(s):</p>
               <div className="max-h-40 overflow-y-auto rounded border divide-y bg-white">
                 {existingAppts.map(a => (
-                  <div key={a.id} className="flex items-center justify-between px-3 py-1.5 text-sm gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="font-medium whitespace-nowrap">
+                  <div key={a.id} className="flex flex-wrap items-center justify-between px-2 sm:px-3 py-1.5 text-sm gap-1 sm:gap-2">
+                    <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+                      <span className="font-medium text-xs sm:text-sm whitespace-nowrap">
                         {new Date(a.date + 'T12:00:00').toLocaleDateString('pt-BR')} às {a.time}
                       </span>
-                      <span className="text-muted-foreground text-xs truncate">
+                      <span className="text-muted-foreground text-xs truncate hidden sm:inline">
                         {APPOINTMENT_TYPES.find(t => t.value === a.type)?.label ?? a.type}
                       </span>
                     </div>
