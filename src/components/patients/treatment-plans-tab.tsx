@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useTreatmentPlans } from '@/hooks/use-treatment-plans'
 import { useProfessionals } from '@/hooks/use-professionals'
 import { useUserRole } from '@/hooks/use-user-role'
@@ -77,6 +77,11 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
   const [editAppointmentOpen, setEditAppointmentOpen] = useState(false)
   const [editAppointmentData, setEditAppointmentData] = useState<any>(null)
 
+  // Next appointment per plan
+  const [nextAppointments, setNextAppointments] = useState<Record<string, { id: string; date: string; time: string }>>({})
+  const [editSingleApptOpen, setEditSingleApptOpen] = useState(false)
+  const [editSingleApptData, setEditSingleApptData] = useState<any>(null)
+
   const [form, setForm] = useState({
     professional_id: professionalId ?? '',
     plan_type: 'treatment' as TreatmentPlan['plan_type'],
@@ -120,6 +125,42 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
   useEffect(() => {
     if (plans.length > 0) fetchSessions()
   }, [plans, fetchSessions])
+
+  // Fetch next upcoming appointment per plan
+  const fetchNextAppointments = useCallback(async () => {
+    if (plans.length === 0) return
+    const supabase = createClient()
+    const today = new Date().toISOString().split('T')[0]
+    const result: Record<string, { id: string; date: string; time: string }> = {}
+
+    for (const plan of plans) {
+      if (!plan.active) continue
+      const typeMap: Record<string, string> = { treatment: 'tratamento', maintenance: 'manutencao', avaliacao: 'avaliacao' }
+      const { data } = await supabase
+        .from('appointments')
+        .select('id, appointment_date, appointment_time')
+        .eq('patient_id', patientId)
+        .eq('professional_id', plan.professional_id)
+        .eq('appointment_type', typeMap[plan.plan_type] || 'tratamento')
+        .neq('status', 'cancelada')
+        .gte('appointment_date', today)
+        .order('appointment_date')
+        .order('appointment_time')
+        .limit(1)
+      if (data && data.length > 0) {
+        result[plan.id] = {
+          id: data[0].id,
+          date: data[0].appointment_date,
+          time: data[0].appointment_time?.slice(0, 5) ?? '',
+        }
+      }
+    }
+    setNextAppointments(result)
+  }, [plans, patientId])
+
+  useEffect(() => {
+    fetchNextAppointments()
+  }, [fetchNextAppointments])
 
   useEffect(() => {
     if (autoOpenCreate) {
@@ -582,8 +623,9 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
     } else {
       toast.success(`${created} agendamento(s) criado(s) com sucesso!`)
     }
-    // Refresh sessions to show updated dates
+    // Refresh sessions and next appointments
     fetchSessions()
+    fetchNextAppointments()
     setScheduleDialogOpen(false)
   }
 
@@ -652,6 +694,49 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                       {plan.total_sessions} sessoes - {formatCurrency(plan.price)}
                       {plan.discount_amount > 0 && ` (desc: ${formatCurrency(plan.discount_amount)})`}
                     </p>
+                    {plan.active && (
+                      <div className="flex items-center gap-2 text-sm">
+                        {nextAppointments[plan.id] ? (
+                          <>
+                            <span className="text-teal-700">
+                              Próxima consulta: {new Date(nextAppointments[plan.id].date + 'T12:00:00').toLocaleDateString('pt-BR')} às {nextAppointments[plan.id].time}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              title="Editar agendamento"
+                              onClick={async () => {
+                                const supabase = createClient()
+                                const { data } = await supabase
+                                  .from('appointments')
+                                  .select('*, patient:patients(full_name, phone), professional:professionals!professional_id(id, full_name)')
+                                  .eq('id', nextAppointments[plan.id].id)
+                                  .single()
+                                if (data) {
+                                  setEditSingleApptData(data)
+                                  setEditSingleApptOpen(true)
+                                }
+                              }}
+                            >
+                              <Pencil className="h-3 w-3 text-blue-500" />
+                            </Button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            className="flex items-center gap-1 text-teal-600 hover:text-teal-800 transition-colors"
+                            onClick={() => {
+                              setSchedulingPlan(plan)
+                              setSingleAppointmentOpen(true)
+                            }}
+                          >
+                            <CalendarPlus className="h-3.5 w-3.5" />
+                            <span>Agendar próxima consulta</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-1">
                     {plan.active && (
@@ -1430,16 +1515,18 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
         </DialogContent>
       </Dialog>
 
-      {/* Single appointment dialog (from post-creation prompt) */}
+      {/* Single appointment dialog (from post-creation prompt or plan card) */}
       <AppointmentFormDialog
         open={singleAppointmentOpen}
         onClose={() => {
           setSingleAppointmentOpen(false)
           setCreatedPlan(null)
+          setSchedulingPlan(null)
+          fetchNextAppointments()
         }}
         defaultPatientId={patientId}
         defaultPatientName={patientName}
-        defaultProfessionalId={createdPlan?.professional_id}
+        defaultProfessionalId={createdPlan?.professional_id ?? schedulingPlan?.professional_id}
       />
 
       {/* Existing appointments alert */}
@@ -1551,12 +1638,24 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
         onClose={() => {
           setEditAppointmentOpen(false)
           setEditAppointmentData(null)
+          fetchNextAppointments()
           // Re-check existing appointments after edit
           if (schedulingPlan) {
             openScheduleDialog(schedulingPlan)
           }
         }}
         appointment={editAppointmentData}
+      />
+
+      {/* Edit appointment from plan card */}
+      <AppointmentFormDialog
+        open={editSingleApptOpen}
+        onClose={() => {
+          setEditSingleApptOpen(false)
+          setEditSingleApptData(null)
+          fetchNextAppointments()
+        }}
+        appointment={editSingleApptData}
       />
     </div>
   )
