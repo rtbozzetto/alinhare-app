@@ -83,7 +83,42 @@ export function useTreatmentPlans(patientId?: string) {
       .eq('id', id)
       .select()
       .single()
-    if (!error && data) setSessions(prev => prev.map(s => s.id === id ? data : s))
+    if (!error && data) {
+      const updatedSessions = sessions.map(s => s.id === id ? data : s)
+      setSessions(updatedSessions)
+
+      // Auto-finalize plan when all sessions are completed
+      if (data.completed && data.plan_id) {
+        const planSessions = updatedSessions.filter(s => s.plan_id === data.plan_id)
+        const plan = plans.find(p => p.id === data.plan_id)
+        if (plan && plan.active && planSessions.length > 0 && planSessions.every(s => s.completed)) {
+          const { data: updatedPlan } = await supabase
+            .from('treatment_plans')
+            .update({ active: false })
+            .eq('id', data.plan_id)
+            .select()
+            .single()
+          if (updatedPlan) {
+            setPlans(prev => prev.map(p => p.id === data.plan_id ? updatedPlan : p))
+          }
+        }
+      }
+      // Re-activate plan if a session is unchecked
+      if (!data.completed && data.plan_id) {
+        const plan = plans.find(p => p.id === data.plan_id)
+        if (plan && !plan.active) {
+          const { data: updatedPlan } = await supabase
+            .from('treatment_plans')
+            .update({ active: true })
+            .eq('id', data.plan_id)
+            .select()
+            .single()
+          if (updatedPlan) {
+            setPlans(prev => prev.map(p => p.id === data.plan_id ? updatedPlan : p))
+          }
+        }
+      }
+    }
     return { data, error }
   }
 

@@ -32,7 +32,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { AppointmentFormDialog } from '@/components/appointments/appointment-form-dialog'
 import { Plus, Trash2, Pencil, CalendarPlus, Calendar, X } from 'lucide-react'
-import { addDays, format, startOfWeek, nextDay } from 'date-fns'
+import { addDays, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 const PLAN_TYPE_LABELS: Record<string, string> = {
@@ -127,12 +127,27 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
-  function handleProtocolChange(proto: string) {
+  function getProtocolForProfessional(profId: string): ProtocolKey {
+    const prof = activeProfessionals.find(p => p.id === profId)
+    if (prof && prof.full_name.toLowerCase().includes('janaina')) return 'janaina'
+    if (prof && prof.full_name.toLowerCase().includes('janaína')) return 'janaina'
+    return 'quiropraxistas'
+  }
+
+  function handleProfessionalChange(profId: string) {
+    updateField('professional_id', profId)
+    const proto = getProtocolForProfessional(profId)
+    // Reset plan selection when professional changes
     updateField('protocol', proto)
     updateField('selected_price_id', '')
     updateField('plan_name', '')
     updateField('total_sessions', 1)
     updateField('price', 0)
+    // Re-apply evaluation price if type is avaliacao
+    if (form.plan_type === 'avaliacao') {
+      updateField('plan_name', 'Avaliação')
+      updateField('price', getEvaluationPrice(proto))
+    }
   }
 
   function handlePlanTypeChange(type: string) {
@@ -172,10 +187,12 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
   const commission = calculateCommission(finalAmount, form.lead_source, selectedProfessionalName)
 
   function openCreateDialog() {
+    const defaultProfId = professionalId ?? ''
+    const defaultProto = defaultProfId ? getProtocolForProfessional(defaultProfId) : 'janaina'
     setForm({
-      professional_id: professionalId ?? '',
+      professional_id: defaultProfId,
       plan_type: 'treatment',
-      protocol: 'janaina',
+      protocol: defaultProto,
       selected_price_id: '',
       plan_name: '',
       total_sessions: 1,
@@ -196,7 +213,7 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
     setEditForm({
       professional_id: plan.professional_id,
       plan_type: plan.plan_type,
-      protocol: (plan as any).protocol ?? 'janaina',
+      protocol: getProtocolForProfessional(plan.professional_id),
       selected_price_id: '',
       plan_name: plan.plan_name,
       total_sessions: plan.total_sessions,
@@ -558,14 +575,15 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
             const statusLabel = PAYMENT_STATUSES.find(s => s.value === plan.payment_status)?.label ?? plan.payment_status
             const planSessions = sessions.filter(s => s.plan_id === plan.id)
             const completedCount = planSessions.filter(s => s.completed).length
+            const isFinished = !plan.active && planSessions.length > 0 && planSessions.every(s => s.completed)
             return (
               <Card key={plan.id}>
                 <CardContent className="flex items-center justify-between p-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium">{plan.plan_name}</span>
-                      <Badge variant={plan.active ? 'default' : 'secondary'}>
-                        {plan.active ? 'Ativo' : 'Inativo'}
+                      <Badge variant={isFinished ? 'default' : plan.active ? 'default' : 'secondary'} className={isFinished ? 'bg-green-600' : ''}>
+                        {isFinished ? 'Finalizado' : plan.active ? 'Ativo' : 'Inativo'}
                       </Badge>
                       <Badge variant="outline">{statusLabel}</Badge>
                       <Badge variant="outline" className="text-xs">
@@ -630,7 +648,7 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                 <Label>Profissional *</Label>
                 <Select
                   value={form.professional_id}
-                  onValueChange={(value: string) => updateField('professional_id', value)}
+                  onValueChange={(value: string) => handleProfessionalChange(value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione..." />
@@ -639,22 +657,6 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                     {activeProfessionals.map(p => (
                       <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Protocolo</Label>
-                <Select
-                  value={form.protocol}
-                  onValueChange={(value: string) => handleProtocolChange(value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="janaina">{grouped.janaina.label}</SelectItem>
-                    <SelectItem value="quiropraxistas">{grouped.quiropraxistas.label}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -883,7 +885,12 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                 <Label>Profissional *</Label>
                 <Select
                   value={editForm.professional_id}
-                  onValueChange={(value: string) => updateEditField('professional_id', value)}
+                  onValueChange={(value: string) => {
+                    updateEditField('professional_id', value)
+                    const proto = getProtocolForProfessional(value)
+                    updateEditField('protocol', proto)
+                    updateEditField('selected_price_id', '')
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione..." />
@@ -892,22 +899,6 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                     {activeProfessionals.map(p => (
                       <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Protocolo</Label>
-                <Select
-                  value={editForm.protocol}
-                  onValueChange={(value: string) => handleEditProtocolChange(value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="janaina">{grouped.janaina.label}</SelectItem>
-                    <SelectItem value="quiropraxistas">{grouped.quiropraxistas.label}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

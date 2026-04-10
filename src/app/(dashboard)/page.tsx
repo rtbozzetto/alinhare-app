@@ -59,7 +59,7 @@ export default function HomePage() {
                   <div className="min-w-0">
                     <p className="font-medium truncate">{patient.full_name}</p>
                     <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                      {calculateAge(patient.birth_date)} anos
+                      {patient.birth_date ? `${calculateAge(patient.birth_date)} anos` : 'Idade n/a'}
                       {patient.main_complaint && ` • ${patient.main_complaint}`}
                     </p>
                   </div>

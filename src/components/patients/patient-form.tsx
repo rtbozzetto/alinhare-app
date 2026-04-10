@@ -106,12 +106,8 @@ export function PatientForm({ patient }: PatientFormProps) {
       toast.error('Nome e obrigatorio.')
       return
     }
-    if (!form.birth_date) {
-      toast.error('Data de nascimento e obrigatoria.')
-      return
-    }
-    if (form.phone && !validatePhone(form.phone)) {
-      toast.error('Telefone invalido. Use o formato (XX) 9XXXX-XXXX.')
+    if (!form.phone || !validatePhone(form.phone)) {
+      toast.error('Telefone e obrigatorio. Use o formato (XX) 9XXXX-XXXX.')
       return
     }
 
@@ -119,7 +115,7 @@ export function PatientForm({ patient }: PatientFormProps) {
 
     const payload: Omit<Patient, 'id' | 'created_at' | 'updated_at'> = {
       full_name: form.full_name.trim(),
-      birth_date: form.birth_date,
+      birth_date: form.birth_date || null,
       sex: form.sex,
       phone: form.phone || null,
       cpf: form.cpf || null,
@@ -178,14 +174,44 @@ export function PatientForm({ patient }: PatientFormProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="birth_date">Data de nascimento *</Label>
-            <Input
-              id="birth_date"
-              type="date"
-              value={form.birth_date}
-              onChange={e => updateField('birth_date', e.target.value)}
-              required
-            />
+            <Label>Data de nascimento</Label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="DD"
+                maxLength={2}
+                className="w-16 text-center"
+                value={form.birth_date ? form.birth_date.split('-')[2] || '' : ''}
+                onChange={e => {
+                  const day = e.target.value.replace(/\D/g, '').slice(0, 2)
+                  const parts = form.birth_date ? form.birth_date.split('-') : ['', '', '']
+                  updateField('birth_date', `${parts[0] || ''}-${parts[1] || ''}-${day}`)
+                }}
+              />
+              <span className="self-center text-muted-foreground">/</span>
+              <Input
+                placeholder="MM"
+                maxLength={2}
+                className="w-16 text-center"
+                value={form.birth_date ? form.birth_date.split('-')[1] || '' : ''}
+                onChange={e => {
+                  const month = e.target.value.replace(/\D/g, '').slice(0, 2)
+                  const parts = form.birth_date ? form.birth_date.split('-') : ['', '', '']
+                  updateField('birth_date', `${parts[0] || ''}-${month}-${parts[2] || ''}`)
+                }}
+              />
+              <span className="self-center text-muted-foreground">/</span>
+              <Input
+                placeholder="AAAA"
+                maxLength={4}
+                className="w-20 text-center"
+                value={form.birth_date ? form.birth_date.split('-')[0] || '' : ''}
+                onChange={e => {
+                  const year = e.target.value.replace(/\D/g, '').slice(0, 4)
+                  const parts = form.birth_date ? form.birth_date.split('-') : ['', '', '']
+                  updateField('birth_date', `${year}-${parts[1] || ''}-${parts[2] || ''}`)
+                }}
+              />
+            </div>
           </div>
           <div className="space-y-2">
             <Label>Sexo</Label>
@@ -206,12 +232,13 @@ export function PatientForm({ patient }: PatientFormProps) {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="phone">Telefone</Label>
+            <Label htmlFor="phone">Telefone *</Label>
             <Input
               id="phone"
               value={form.phone}
               onChange={e => updateField('phone', formatPhone(e.target.value))}
               placeholder="(21) 99999-9999"
+              required
             />
           </div>
           <div className="space-y-2">

@@ -16,7 +16,7 @@ export interface Professional {
 export interface Patient {
   id: string
   full_name: string
-  birth_date: string
+  birth_date: string | null
   sex: 'masculino' | 'feminino' | 'outro'
   height_cm: number | null
   phone: string | null
