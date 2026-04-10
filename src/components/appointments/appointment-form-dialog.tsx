@@ -47,6 +47,7 @@ interface AppointmentFormDialogProps {
   defaultPatientId?: string
   defaultPatientName?: string
   defaultProfessionalId?: string
+  defaultSessionId?: string
   onSwitchToBatch?: () => void
 }
 
@@ -59,6 +60,7 @@ export function AppointmentFormDialog({
   defaultPatientId,
   defaultPatientName,
   defaultProfessionalId,
+  defaultSessionId,
   onSwitchToBatch,
 }: AppointmentFormDialogProps) {
   const { createAppointment, updateAppointment, deleteAppointment } = useAppointments()
@@ -238,19 +240,34 @@ export function AppointmentFormDialog({
       const plan = plans[0]
       setActivePlan(plan)
 
-      // Find next pending session
-      const { data: sessions } = await supabase
-        .from('treatment_sessions')
-        .select('*')
-        .eq('plan_id', plan.id)
-        .eq('completed', false)
-        .order('session_number')
-        .limit(1)
-
-      if (sessions && sessions.length > 0) {
-        setNextSession({ number: sessions[0].session_number, total: plan.total_sessions })
+      // Find the session being scheduled
+      if (defaultSessionId) {
+        // Specific session selected (from sessions tab)
+        const { data: specificSession } = await supabase
+          .from('treatment_sessions')
+          .select('session_number')
+          .eq('id', defaultSessionId)
+          .single()
+        if (specificSession) {
+          setNextSession({ number: specificSession.session_number, total: plan.total_sessions })
+        } else {
+          setNextSession(null)
+        }
       } else {
-        setNextSession(null)
+        // Fallback: find next pending session
+        const { data: sessions } = await supabase
+          .from('treatment_sessions')
+          .select('*')
+          .eq('plan_id', plan.id)
+          .eq('completed', false)
+          .order('session_number')
+          .limit(1)
+
+        if (sessions && sessions.length > 0) {
+          setNextSession({ number: sessions[0].session_number, total: plan.total_sessions })
+        } else {
+          setNextSession(null)
+        }
       }
 
       // Auto-fill form fields from active plan
@@ -403,20 +420,30 @@ export function AppointmentFormDialog({
       if (error) {
         toast.error(`Erro ao criar agendamento: ${error.message || 'erro desconhecido'}`)
       } else {
-        // Sync next pending session date with appointment date
-        if (activePlan && form.appointment_date) {
-          const { data: pendingSessions } = await supabase
-            .from('treatment_sessions')
-            .select('id')
-            .eq('plan_id', activePlan.id)
-            .eq('completed', false)
-            .order('session_number')
-            .limit(1)
-          if (pendingSessions && pendingSessions.length > 0) {
+        // Sync session date with appointment date
+        if (form.appointment_date) {
+          if (defaultSessionId) {
+            // Update the specific session that was selected
             await supabase
               .from('treatment_sessions')
               .update({ session_date: form.appointment_date })
-              .eq('id', pendingSessions[0].id)
+              .eq('id', defaultSessionId)
+          } else if (activePlan) {
+            // Fallback: update next pending session
+            const { data: pendingSessions } = await supabase
+              .from('treatment_sessions')
+              .select('id')
+              .eq('plan_id', activePlan.id)
+              .eq('completed', false)
+              .is('session_date', null)
+              .order('session_number')
+              .limit(1)
+            if (pendingSessions && pendingSessions.length > 0) {
+              await supabase
+                .from('treatment_sessions')
+                .update({ session_date: form.appointment_date })
+                .eq('id', pendingSessions[0].id)
+            }
           }
         }
         toast.success('Agendamento criado!')

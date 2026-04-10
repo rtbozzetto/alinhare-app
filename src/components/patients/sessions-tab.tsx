@@ -1067,6 +1067,7 @@ export function SessionsTab({ patientId, patientName, onRequestNewPlan }: Sessio
         defaultPatientId={patientId}
         defaultPatientName={patientName}
         defaultProfessionalId={schedulingSession?.professional_id}
+        defaultSessionId={schedulingSession?.id}
       />
     </div>
   )
