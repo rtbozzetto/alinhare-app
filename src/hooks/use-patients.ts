@@ -23,13 +23,18 @@ export function usePatients() {
 
   const createPatient = async (patient: Omit<Patient, 'id' | 'created_at' | 'updated_at'>) => {
     const { data, error } = await supabase.from('patients').insert(patient).select().single()
-    if (!error && data) {
+    if (error) {
+      console.error('Patient create error:', error)
+      return { data: null, error }
+    }
+    if (data) {
       // Auto-link to professional if not admin
       if (professionalId) {
-        await supabase.from('professional_patients').insert({
+        const { error: linkError } = await supabase.from('professional_patients').insert({
           professional_id: professionalId,
           patient_id: data.id,
         })
+        if (linkError) console.error('Professional-patient link error:', linkError)
       }
       setPatients(prev => [...prev, data].sort((a, b) => a.full_name.localeCompare(b.full_name)))
     }

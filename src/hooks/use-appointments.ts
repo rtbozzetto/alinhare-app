@@ -62,7 +62,9 @@ export function useAppointments() {
       message: `Agendamento criado para ${(data as any).patient?.full_name || 'paciente'}`,
       type: 'appointment',
       related_appointment_id: data.id,
-    }).then(() => {})
+    }).then(({ error: notifError }) => {
+      if (notifError) console.error('Notification insert error:', notifError)
+    })
     return { data, error: null }
   }
 

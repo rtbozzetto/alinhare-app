@@ -78,7 +78,8 @@ export default function ConfiguracoesPage() {
     setSavingProfile(false)
 
     if (error) {
-      toast.error('Erro ao salvar perfil.')
+      console.error('Profile update error:', error)
+      toast.error('Erro ao salvar perfil. Verifique as permissões.')
     } else {
       toast.success('Perfil atualizado!')
     }
