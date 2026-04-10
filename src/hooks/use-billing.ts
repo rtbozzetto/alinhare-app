@@ -134,14 +134,13 @@ export function useBilling() {
     }
 
     // Fetch completed sessions in this month that DON'T have a matching appointment
-    // These are sessions marked as done directly without scheduling
+    // Uses updated_at (when marked as done) OR session_date to determine the month
     const { data: sessionsData } = await supabase
       .from('treatment_sessions')
       .select('*, plan:treatment_plans(*, patient:patients(full_name), professional:professionals!professional_id(id, full_name))')
       .eq('completed', true)
-      .gte('session_date', startDate)
-      .lte('session_date', endDate)
-      .order('session_date')
+      .or(`and(session_date.gte.${startDate},session_date.lte.${endDate}),and(session_date.is.null,updated_at.gte.${startDate}T00:00:00,updated_at.lte.${endDate}T23:59:59)`)
+      .order('updated_at')
 
     if (sessionsData && data) {
       // Get appointment session_ids to exclude sessions that already have appointments
@@ -170,7 +169,7 @@ export function useBilling() {
 
         return {
           id: s.id,
-          session_date: s.session_date,
+          session_date: s.session_date ?? s.updated_at.split('T')[0],
           session_number: s.session_number,
           total_sessions: totalSessions,
           patient_name: plan.patient?.full_name ?? '-',
