@@ -17,7 +17,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Upload, Trash2, FileText, Brain, ExternalLink } from 'lucide-react'
+import { Upload, Trash2, FileText, Brain, ExternalLink, Loader2 } from 'lucide-react'
 
 interface ExamsTabProps {
   patientId: string
@@ -31,6 +31,7 @@ export function ExamsTab({ patientId }: ExamsTabProps) {
   const [description, setDescription] = useState('')
   const [selectedExam, setSelectedExam] = useState<PatientExam | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null)
 
   const fetchExams = useCallback(async () => {
     setLoading(true)
@@ -103,6 +104,57 @@ export function ExamsTab({ patientId }: ExamsTabProps) {
     await supabase.from('patient_exams').delete().eq('id', exam.id)
     setExams(prev => prev.filter(e => e.id !== exam.id))
     toast.success('Exame excluido.')
+  }
+
+  async function handleAnalyze(exam: PatientExam) {
+    setAnalyzingId(exam.id)
+    try {
+      // Get patient data for context
+      const { data: patient } = await supabase
+        .from('patients')
+        .select('*')
+        .eq('id', patientId)
+        .single()
+
+      const response = await fetch('/api/ai/analyze-exam', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          examId: exam.id,
+          fileUrl: exam.file_url,
+          fileName: exam.file_name,
+          fileType: exam.file_type,
+          examDescription: exam.exam_description,
+          patientData: patient,
+        }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json()
+        toast.error(err.error || 'Erro ao analisar exame.')
+        setAnalyzingId(null)
+        return
+      }
+
+      const result = await response.json()
+
+      // Update local state with analysis
+      setExams(prev => prev.map(e =>
+        e.id === exam.id
+          ? { ...e, ai_analysis: result.analysis, analyzed_at: new Date().toISOString() }
+          : e
+      ))
+
+      toast.success('Análise concluída!')
+
+      // Open detail dialog with the result
+      setSelectedExam({ ...exam, ai_analysis: result.analysis, analyzed_at: new Date().toISOString() })
+      setDetailOpen(true)
+    } catch (err) {
+      console.error('Analysis error:', err)
+      toast.error('Erro ao analisar exame.')
+    }
+    setAnalyzingId(null)
   }
 
   function openDetail(exam: PatientExam) {
@@ -217,11 +269,20 @@ export function ExamsTab({ patientId }: ExamsTabProps) {
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled
-                    title="Analise IA (em breve)"
+                    onClick={() => handleAnalyze(exam)}
+                    disabled={analyzingId === exam.id}
                   >
-                    <Brain className="mr-1 h-3 w-3" />
-                    Analisar
+                    {analyzingId === exam.id ? (
+                      <>
+                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        Analisando...
+                      </>
+                    ) : (
+                      <>
+                        <Brain className="mr-1 h-3 w-3" />
+                        {exam.ai_analysis ? 'Reanalisar' : 'Analisar'}
+                      </>
+                    )}
                   </Button>
                   <Button
                     variant="ghost"
