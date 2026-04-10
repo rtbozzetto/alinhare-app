@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState, useEffect } from 'react'
+import { Suspense, useState, useEffect, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/use-auth'
@@ -27,73 +27,91 @@ function ResetPasswordContent() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
 
-  // Session state for recovery flow
-  const [verifying, setVerifying] = useState(isRecovery || !!code)
+  const isRecoveryFlow = isRecovery || !!code
+  const [verifying, setVerifying] = useState(isRecoveryFlow)
   const [sessionReady, setSessionReady] = useState(false)
   const [sessionError, setSessionError] = useState(false)
+  const resolved = useRef(false)
 
   useEffect(() => {
-    if (!isRecovery && !code) return
+    if (!isRecoveryFlow) return
 
     const supabase = createClient()
-    let resolved = false
 
     function resolve(success: boolean) {
-      if (resolved) return
-      resolved = true
-      if (success) {
-        setSessionReady(true)
-      } else {
-        setSessionError(true)
-      }
+      if (resolved.current) return
+      resolved.current = true
+      setSessionReady(success)
+      setSessionError(!success)
       setVerifying(false)
     }
 
-    // Strategy 1: Exchange PKCE code if present
-    if (code) {
-      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-        if (error) {
-          console.error('Code exchange error:', error.message)
-          // Don't resolve as error yet — maybe implicit flow will work
-        } else {
+    async function establishSession() {
+      // Strategy 1: PKCE code in query params
+      if (code) {
+        console.log('[reset-password] Trying PKCE code exchange...')
+        const { error } = await supabase.auth.exchangeCodeForSession(code)
+        if (!error) {
+          console.log('[reset-password] PKCE code exchange success')
           resolve(true)
+          return
         }
-      })
+        console.error('[reset-password] PKCE code exchange error:', error.message)
+      }
+
+      // Strategy 2: Implicit flow - tokens in URL hash fragment
+      if (typeof window !== 'undefined' && window.location.hash) {
+        console.log('[reset-password] Found hash fragment, letting Supabase process...')
+        const hash = window.location.hash.substring(1)
+        const params = new URLSearchParams(hash)
+        const accessToken = params.get('access_token')
+        const refreshToken = params.get('refresh_token')
+        if (accessToken && refreshToken) {
+          console.log('[reset-password] Setting session from hash tokens...')
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+          if (!error) {
+            console.log('[reset-password] Hash token session success')
+            resolve(true)
+            return
+          }
+          console.error('[reset-password] Hash token session error:', error.message)
+        }
+      }
+
+      // Strategy 3: Poll for session (might have been set by auto-detection)
+      for (let i = 0; i < 8; i++) {
+        if (resolved.current) return
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          console.log('[reset-password] Session found via polling')
+          resolve(true)
+          return
+        }
+        await new Promise(r => setTimeout(r, 500))
+      }
+
+      // Nothing worked
+      console.error('[reset-password] All session strategies failed')
+      resolve(false)
     }
 
-    // Strategy 2: Listen for PASSWORD_RECOVERY event (implicit flow / hash tokens)
+    // Also listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth state change:', event, !!session)
+      console.log('[reset-password] Auth state change:', event)
       if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
         resolve(true)
       }
     })
 
-    // Strategy 3: Check if session already exists (hash might be auto-processed)
-    const checkSession = async () => {
-      // Small delay to allow Supabase to process hash tokens
-      await new Promise(r => setTimeout(r, 1000))
-      if (resolved) return
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        resolve(true)
-      }
-    }
-    checkSession()
-
-    // Timeout: if nothing worked after 5 seconds, show error
-    const timeout = setTimeout(() => {
-      if (!resolved) {
-        console.error('Session verification timed out')
-        resolve(false)
-      }
-    }, 5000)
+    establishSession()
 
     return () => {
       subscription.unsubscribe()
-      clearTimeout(timeout)
     }
-  }, [isRecovery, code])
+  }, [isRecoveryFlow, code])
 
   async function handleRequestReset(e: React.FormEvent) {
     e.preventDefault()
@@ -123,16 +141,15 @@ function ResetPasswordContent() {
     setLoading(false)
     if (error) {
       console.error('Update password error:', error)
-      toast.error('Erro ao atualizar senha. O link pode ter expirado.')
+      toast.error('Erro ao atualizar senha. Tente solicitar um novo link.')
     } else {
       toast.success('Senha definida com sucesso!')
       router.push('/login')
     }
   }
 
-  // Recovery mode
-  if (isRecovery || code) {
-    // Loading: verifying the link
+  // Recovery flow
+  if (isRecoveryFlow) {
     if (verifying) {
       return (
         <Card className="w-full max-w-sm">
@@ -146,7 +163,6 @@ function ResetPasswordContent() {
       )
     }
 
-    // Error: link expired or invalid
     if (sessionError) {
       return (
         <Card className="w-full max-w-sm">
@@ -157,7 +173,7 @@ function ResetPasswordContent() {
           </CardHeader>
           <CardContent className="space-y-4 text-center">
             <p className="text-sm text-muted-foreground">
-              Este link de recuperação expirou ou já foi utilizado. Solicite um novo.
+              Este link expirou ou já foi utilizado. Solicite um novo.
             </p>
             <Link href="/reset-password">
               <Button variant="outline" className="w-full">
@@ -174,7 +190,6 @@ function ResetPasswordContent() {
       )
     }
 
-    // Session ready: show password form
     if (sessionReady) {
       return (
         <Card className="w-full max-w-sm">
@@ -249,7 +264,7 @@ function ResetPasswordContent() {
     }
   }
 
-  // Request mode: user wants to reset password
+  // Request mode
   return (
     <Card className="w-full max-w-sm">
       <CardHeader className="text-center">
