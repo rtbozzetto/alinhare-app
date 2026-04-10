@@ -23,6 +23,7 @@ import {
   LogOut,
   Tag,
   Menu,
+  Settings,
 } from 'lucide-react'
 
 const navItems = [
@@ -68,7 +69,19 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
         })}
       </nav>
 
-      <div className="border-t p-2">
+      <div className="border-t p-2 space-y-1">
+        <Link href="/configuracoes" onClick={onNavigate}>
+          <Button
+            variant="ghost"
+            className={cn(
+              'w-full justify-start gap-2 h-11 text-muted-foreground',
+              pathname === '/configuracoes' && 'bg-teal-50 text-teal-700'
+            )}
+          >
+            <Settings className="h-4 w-4" />
+            Configurações
+          </Button>
+        </Link>
         <Button
           variant="ghost"
           className="w-full justify-start gap-2 h-11 text-muted-foreground"
