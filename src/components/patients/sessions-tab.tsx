@@ -54,6 +54,7 @@ export function SessionsTab({ patientId, onRequestNewPlan }: SessionsTabProps) {
   const [newClinicalNote, setNewClinicalNote] = useState('')
 
   const [saving, setSaving] = useState(false)
+  const [celebrationDismissed, setCelebrationDismissed] = useState<Set<string>>(new Set())
 
   // Photo states
   const [sessionPhotos, setSessionPhotos] = useState<PatientPhoto[]>([])
@@ -637,8 +638,8 @@ export function SessionsTab({ patientId, onRequestNewPlan }: SessionsTabProps) {
                 )}
               </CardContent>
 
-              {/* Offer new protocol only when ALL active plans are fully completed */}
-              {completedCount === plan.total_sessions && plan.total_sessions > 0 && plan.active && allActivePlansCompleted && (
+              {/* Offer new protocol when plan is fully completed */}
+              {completedCount === plan.total_sessions && plan.total_sessions > 0 && !celebrationDismissed.has(plan.id) && (
                 <CardContent className="border-t pt-4">
                   <div className="rounded-lg border-2 border-dashed border-teal-300 bg-teal-50 p-4 text-center">
                     <PartyPopper className="mx-auto mb-2 h-6 w-6 text-teal-600" />
@@ -650,10 +651,20 @@ export function SessionsTab({ patientId, onRequestNewPlan }: SessionsTabProps) {
                       <Button
                         size="sm"
                         className="bg-teal-600 hover:bg-teal-700"
-                        onClick={() => onRequestNewPlan?.()}
+                        onClick={() => {
+                          setCelebrationDismissed(prev => new Set(prev).add(plan.id))
+                          onRequestNewPlan?.()
+                        }}
                       >
                         <Plus className="mr-1 h-3 w-3" />
                         Novo Plano
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setCelebrationDismissed(prev => new Set(prev).add(plan.id))}
+                      >
+                        Fechar
                       </Button>
                     </div>
                   </div>
