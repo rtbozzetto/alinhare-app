@@ -30,7 +30,7 @@ import { PAYMENT_STATUSES, PAYMENT_METHODS, LEAD_SOURCES, SCHEDULE } from '@/lib
 import { formatCurrency, calculateCommission, applyCreditCardFee } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { Plus, Trash2, Pencil, CalendarPlus, X } from 'lucide-react'
+import { Plus, Trash2, Pencil, CalendarPlus, Calendar, X } from 'lucide-react'
 import { addDays, format, startOfWeek, nextDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -57,6 +57,10 @@ export function TreatmentPlansTab({ patientId, autoOpenCreate, onAutoOpenHandled
   const [editingPlan, setEditingPlan] = useState<TreatmentPlan | null>(null)
   const [saving, setSaving] = useState(false)
 
+  // Post-creation scheduling prompt
+  const [schedulePromptOpen, setSchedulePromptOpen] = useState(false)
+  const [createdPlan, setCreatedPlan] = useState<TreatmentPlan | null>(null)
+
   // Batch scheduling state
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false)
   const [schedulingPlan, setSchedulingPlan] = useState<TreatmentPlan | null>(null)
@@ -72,7 +76,6 @@ export function TreatmentPlansTab({ patientId, autoOpenCreate, onAutoOpenHandled
     selected_price_id: '',
     plan_name: '',
     total_sessions: 1,
-    start_date: new Date().toISOString().split('T')[0],
     notes: '',
     price: 0,
     payment_status: 'nao_pago' as TreatmentPlan['payment_status'],
@@ -173,7 +176,6 @@ export function TreatmentPlansTab({ patientId, autoOpenCreate, onAutoOpenHandled
       selected_price_id: '',
       plan_name: '',
       total_sessions: 1,
-      start_date: new Date().toISOString().split('T')[0],
       notes: '',
       price: 0,
       payment_status: 'nao_pago',
@@ -221,13 +223,13 @@ export function TreatmentPlansTab({ patientId, autoOpenCreate, onAutoOpenHandled
     }
 
     setSaving(true)
-    const { error } = await createPlan({
+    const { data: newPlan, error } = await createPlan({
       patient_id: patientId,
       professional_id: form.professional_id,
       plan_name: form.plan_name,
       plan_type: form.plan_type,
       total_sessions: form.total_sessions,
-      start_date: form.start_date,
+      start_date: new Date().toISOString().split('T')[0],
       notes: form.notes || null,
       active: true,
       price: form.price,
@@ -247,9 +249,14 @@ export function TreatmentPlansTab({ patientId, autoOpenCreate, onAutoOpenHandled
     if (error) {
       toast.error('Erro ao criar plano.')
     } else {
-      toast.success('Plano criado e sessoes geradas!')
+      toast.success('Plano criado!')
       setDialogOpen(false)
       fetchPlans()
+      // Show scheduling prompt
+      if (newPlan) {
+        setCreatedPlan(newPlan as TreatmentPlan)
+        setSchedulePromptOpen(true)
+      }
     }
   }
 
@@ -689,15 +696,6 @@ export function TreatmentPlansTab({ patientId, autoOpenCreate, onAutoOpenHandled
               )}
 
               <div className="space-y-2">
-                <Label>Data de inicio</Label>
-                <Input
-                  type="date"
-                  value={form.start_date}
-                  onChange={e => updateField('start_date', e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
                 <Label>Sessoes</Label>
                 <Input
                   type="number"
@@ -949,15 +947,6 @@ export function TreatmentPlansTab({ patientId, autoOpenCreate, onAutoOpenHandled
                   </Select>
                 </div>
               )}
-
-              <div className="space-y-2">
-                <Label>Data de inicio</Label>
-                <Input
-                  type="date"
-                  value={editForm.start_date}
-                  onChange={e => updateEditField('start_date', e.target.value)}
-                />
-              </div>
 
               <div className="space-y-2">
                 <Label>Sessoes</Label>
@@ -1298,6 +1287,56 @@ export function TreatmentPlansTab({ patientId, autoOpenCreate, onAutoOpenHandled
                 : `Criar ${schedulePreview.length} Agendamento${schedulePreview.length !== 1 ? 's' : ''}`}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Post-creation scheduling prompt */}
+      <Dialog open={schedulePromptOpen} onOpenChange={setSchedulePromptOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Plano criado com sucesso!</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Deseja agendar as sessões agora?
+          </p>
+          <div className="flex flex-col gap-2 pt-2">
+            <Button
+              className="w-full bg-teal-600 hover:bg-teal-700"
+              onClick={() => {
+                setSchedulePromptOpen(false)
+                if (createdPlan) {
+                  // Open single appointment form via the existing schedule dialog with just 1 session
+                  openScheduleDialog({ ...createdPlan, total_sessions: 1 } as TreatmentPlan)
+                }
+              }}
+            >
+              <Calendar className="mr-2 h-4 w-4" />
+              Agendar próxima sessão
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                setSchedulePromptOpen(false)
+                if (createdPlan) {
+                  openScheduleDialog(createdPlan)
+                }
+              }}
+            >
+              <CalendarPlus className="mr-2 h-4 w-4" />
+              Agendar em lote
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full text-muted-foreground"
+              onClick={() => {
+                setSchedulePromptOpen(false)
+                setCreatedPlan(null)
+              }}
+            >
+              Depois
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
