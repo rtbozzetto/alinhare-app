@@ -241,7 +241,7 @@ export function AppointmentFormDialog({
         ...prev,
         professional_id: plan.professional_id,
         appointment_type: appointmentType,
-        payment_status: plan.payment_status === 'pago' || plan.payment_status === 'pago_parcial' ? 'pago_pacote' : 'nao_pago',
+        payment_status: plan.payment_status === 'pago' || plan.payment_status === 'pago_pacote' ? 'pago_pacote' : 'nao_pago',
         payment_method: plan.payment_method,
         custom_price: perSessionPrice,
         discount_amount: 0,
@@ -565,7 +565,7 @@ export function AppointmentFormDialog({
           {/* Active plan indicator */}
           {activePlan && !isEdit && (
             <div className="rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-800">
-              <span className="font-medium">Plano ativo:</span> {activePlan.plan_name} — {activePlan.total_sessions} sessoes ({activePlan.payment_status === 'pago' ? 'Pago' : activePlan.payment_status === 'pago_parcial' ? 'Pago parcial' : 'Nao pago'})
+              <span className="font-medium">Plano ativo:</span> {activePlan.plan_name} — {activePlan.total_sessions} sessoes ({activePlan.payment_status === 'pago' ? 'Pago' : activePlan.payment_status === 'pago_pacote' ? 'Pago (pacote)' : 'Nao pago'})
             </div>
           )}
 
