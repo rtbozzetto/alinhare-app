@@ -44,6 +44,9 @@ interface AppointmentFormDialogProps {
   appointment?: Appointment | null
   defaultDate?: string
   defaultTime?: string
+  defaultPatientId?: string
+  defaultPatientName?: string
+  defaultProfessionalId?: string
   onSwitchToBatch?: () => void
 }
 
@@ -53,6 +56,9 @@ export function AppointmentFormDialog({
   appointment,
   defaultDate,
   defaultTime,
+  defaultPatientId,
+  defaultPatientName,
+  defaultProfessionalId,
   onSwitchToBatch,
 }: AppointmentFormDialogProps) {
   const { createAppointment, updateAppointment, deleteAppointment } = useAppointments()
@@ -113,8 +119,8 @@ export function AppointmentFormDialog({
     } else {
       setForm(prev => ({
         ...prev,
-        patient_id: '',
-        professional_id: professionalId ?? '',
+        patient_id: defaultPatientId ?? '',
+        professional_id: defaultProfessionalId ?? professionalId ?? '',
         appointment_date: defaultDate ?? '',
         appointment_time: defaultTime ?? '',
         appointment_type: 'avaliacao',
@@ -128,9 +134,12 @@ export function AppointmentFormDialog({
         lead_source: 'clinica',
         lead_professional_id: null,
       }))
-      setPatientSearch('')
+      setPatientSearch(defaultPatientName ?? '')
+      if (defaultPatientId) {
+        fetchActivePlan(defaultPatientId)
+      }
     }
-  }, [appointment, defaultDate, defaultTime, professionalId])
+  }, [appointment, defaultDate, defaultTime, defaultPatientId, defaultPatientName, defaultProfessionalId, professionalId])
 
   function updateField(field: string, value: unknown) {
     setForm(prev => ({ ...prev, [field]: value }))
