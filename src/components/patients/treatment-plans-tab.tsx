@@ -30,6 +30,7 @@ import { PAYMENT_STATUSES, PAYMENT_METHODS, LEAD_SOURCES, SCHEDULE } from '@/lib
 import { formatCurrency, calculateCommission, applyCreditCardFee } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { AppointmentFormDialog } from '@/components/appointments/appointment-form-dialog'
 import { Plus, Trash2, Pencil, CalendarPlus, Calendar, X } from 'lucide-react'
 import { addDays, format, startOfWeek, nextDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -42,11 +43,12 @@ const PLAN_TYPE_LABELS: Record<string, string> = {
 
 interface TreatmentPlansTabProps {
   patientId: string
+  patientName?: string
   autoOpenCreate?: boolean
   onAutoOpenHandled?: () => void
 }
 
-export function TreatmentPlansTab({ patientId, autoOpenCreate, onAutoOpenHandled }: TreatmentPlansTabProps) {
+export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAutoOpenHandled }: TreatmentPlansTabProps) {
   const { plans, sessions, loading, fetchPlans, fetchSessions, createPlan, updatePlan, deletePlan } = useTreatmentPlans(patientId)
   const { activeProfessionals } = useProfessionals()
   const { professionalId, isAdmin } = useUserRole()
@@ -60,6 +62,7 @@ export function TreatmentPlansTab({ patientId, autoOpenCreate, onAutoOpenHandled
   // Post-creation scheduling prompt
   const [schedulePromptOpen, setSchedulePromptOpen] = useState(false)
   const [createdPlan, setCreatedPlan] = useState<TreatmentPlan | null>(null)
+  const [singleAppointmentOpen, setSingleAppointmentOpen] = useState(false)
 
   // Batch scheduling state
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false)
@@ -1304,10 +1307,7 @@ export function TreatmentPlansTab({ patientId, autoOpenCreate, onAutoOpenHandled
               className="w-full bg-teal-600 hover:bg-teal-700"
               onClick={() => {
                 setSchedulePromptOpen(false)
-                if (createdPlan) {
-                  // Open single appointment form via the existing schedule dialog with just 1 session
-                  openScheduleDialog({ ...createdPlan, total_sessions: 1 } as TreatmentPlan)
-                }
+                setSingleAppointmentOpen(true)
               }}
             >
               <Calendar className="mr-2 h-4 w-4" />
@@ -1339,6 +1339,18 @@ export function TreatmentPlansTab({ patientId, autoOpenCreate, onAutoOpenHandled
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Single appointment dialog (from post-creation prompt) */}
+      <AppointmentFormDialog
+        open={singleAppointmentOpen}
+        onClose={() => {
+          setSingleAppointmentOpen(false)
+          setCreatedPlan(null)
+        }}
+        defaultPatientId={patientId}
+        defaultPatientName={patientName}
+        defaultProfessionalId={createdPlan?.professional_id}
+      />
     </div>
   )
 }

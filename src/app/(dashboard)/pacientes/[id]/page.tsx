@@ -133,6 +133,7 @@ export default function PatientDetailPage() {
         <TabsContent value="planos">
           <TreatmentPlansTab
             patientId={patientId}
+            patientName={patient?.full_name}
             autoOpenCreate={autoOpenCreatePlan}
             onAutoOpenHandled={() => setAutoOpenCreatePlan(false)}
           />
