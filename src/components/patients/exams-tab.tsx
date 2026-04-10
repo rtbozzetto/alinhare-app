@@ -116,8 +116,13 @@ export function ExamsTab({ patientId }: ExamsTabProps) {
       })
 
       if (!response.ok) {
-        const err = await response.json()
-        toast.error(err.error || 'Erro ao analisar exame.')
+        let errMsg = `Erro ${response.status}`
+        try {
+          const err = await response.json()
+          errMsg = err.error || errMsg
+        } catch { /* ignore parse error */ }
+        console.error('Analyze exam error:', errMsg)
+        toast.error(errMsg)
         setAnalyzingId(null)
         return
       }

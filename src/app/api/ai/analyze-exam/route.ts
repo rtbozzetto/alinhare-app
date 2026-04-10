@@ -2,48 +2,56 @@ import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 export async function POST(request: Request) {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) {
-    return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 500 })
-  }
-
-  const body = await request.json()
-  const { examId } = body
-
-  if (!examId) {
-    return NextResponse.json({ error: 'examId é obrigatório' }, { status: 400 })
-  }
-
-  // Fetch exam record from DB
-  const { data: exam, error: examError } = await supabase
-    .from('patient_exams')
-    .select('*, patient:patients(*)')
-    .eq('id', examId)
-    .single()
-
-  if (examError || !exam) {
-    return NextResponse.json({ error: 'Exame não encontrado' }, { status: 404 })
-  }
-
-  // Generate server-side signed URL and download the file
-  let fileParts: any[] = []
   try {
+    const supabase = await createServerSupabaseClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+
+    const apiKey = process.env.GEMINI_API_KEY
+    if (!apiKey) {
+      return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 500 })
+    }
+
+    const body = await request.json()
+    const { examId } = body
+
+    if (!examId) {
+      return NextResponse.json({ error: 'examId é obrigatório' }, { status: 400 })
+    }
+
+    // Fetch exam record from DB
+    const { data: exam, error: examError } = await supabase
+      .from('patient_exams')
+      .select('*')
+      .eq('id', examId)
+      .single()
+
+    if (examError || !exam) {
+      console.error('Exam fetch error:', examError)
+      return NextResponse.json({ error: `Exame não encontrado: ${examError?.message ?? 'unknown'}` }, { status: 404 })
+    }
+
+    // Fetch patient data separately
+    const { data: patient } = await supabase
+      .from('patients')
+      .select('*')
+      .eq('id', exam.patient_id)
+      .single()
+
+    // Generate server-side signed URL and download the file
+    let fileParts: any[] = []
     const { data: signedData, error: signError } = await supabase.storage
       .from('exam-files')
       .createSignedUrl(exam.file_url, 600)
 
     if (signError || !signedData?.signedUrl) {
-      console.error('Failed to create signed URL:', signError)
-      return NextResponse.json({ error: 'Não foi possível acessar o arquivo do exame' }, { status: 400 })
+      console.error('Signed URL error:', signError)
+      return NextResponse.json({ error: `Erro ao acessar arquivo: ${signError?.message ?? 'URL não gerada'}` }, { status: 400 })
     }
 
     const fileResponse = await fetch(signedData.signedUrl)
     if (!fileResponse.ok) {
-      return NextResponse.json({ error: 'Não foi possível baixar o arquivo do exame' }, { status: 400 })
+      return NextResponse.json({ error: `Erro ao baixar arquivo: HTTP ${fileResponse.status}` }, { status: 400 })
     }
 
     const fileBuffer = await fileResponse.arrayBuffer()
@@ -63,20 +71,15 @@ export async function POST(request: Request) {
         text: `[Arquivo: ${exam.file_name} - tipo: ${contentType}. Não é possível analisar visualmente este formato, use apenas a descrição do exame.]`,
       })
     }
-  } catch (err) {
-    console.error('Failed to fetch exam file:', err)
-    return NextResponse.json({ error: 'Erro ao carregar arquivo do exame' }, { status: 500 })
-  }
 
-  // Build patient context
-  const patient = exam.patient
-  let patientContext = ''
-  if (patient) {
-    const age = patient.birth_date
-      ? Math.floor((Date.now() - new Date(patient.birth_date).getTime()) / 31557600000)
-      : null
+    // Build patient context
+    let patientContext = ''
+    if (patient) {
+      const age = patient.birth_date
+        ? Math.floor((Date.now() - new Date(patient.birth_date).getTime()) / 31557600000)
+        : null
 
-    patientContext = `
+      patientContext = `
 ## Dados do Paciente
 - Nome: ${patient.full_name || 'Não informado'}
 - Idade: ${age ?? 'Não informada'}
@@ -88,9 +91,9 @@ export async function POST(request: Request) {
 - Problemas de saúde: ${patient.health_problems || 'Nenhum'}
 ${patient.discomfort_regions?.length ? `- Regiões de desconforto: ${patient.discomfort_regions.join(', ')}` : ''}
 `
-  }
+    }
 
-  const prompt = `Você é um fisioterapeuta especialista, trabalhando na Clínica Alinhare.
+    const prompt = `Você é um fisioterapeuta especialista, trabalhando na Clínica Alinhare.
 Analise o exame médico a seguir e forneça uma interpretação detalhada e relevante para o tratamento fisioterapêutico.
 
 ## Sobre o Exame
@@ -121,8 +124,7 @@ Sugestões adicionais (outros exames, encaminhamentos, acompanhamento).
 
 Seja objetivo, técnico e prático nas recomendações.`
 
-  try {
-    const response = await fetch(
+    const geminiResponse = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
@@ -144,13 +146,13 @@ Seja objetivo, técnico e prático nas recomendações.`
       }
     )
 
-    if (!response.ok) {
-      const errText = await response.text()
+    if (!geminiResponse.ok) {
+      const errText = await geminiResponse.text()
       console.error('Gemini API error:', errText)
-      return NextResponse.json({ error: 'Erro na API de análise' }, { status: 502 })
+      return NextResponse.json({ error: `Erro na API Gemini: ${geminiResponse.status}` }, { status: 502 })
     }
 
-    const data = await response.json()
+    const data = await geminiResponse.json()
     const analysisText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
 
     if (!analysisText) {
@@ -158,7 +160,7 @@ Seja objetivo, técnico e prático nas recomendações.`
     }
 
     // Save analysis to exam record
-    await supabase
+    const { error: updateError } = await supabase
       .from('patient_exams')
       .update({
         ai_analysis: analysisText,
@@ -166,12 +168,16 @@ Seja objetivo, técnico e prático nas recomendações.`
       })
       .eq('id', examId)
 
+    if (updateError) {
+      console.error('Update exam error:', updateError)
+    }
+
     return NextResponse.json({
       analysis: analysisText,
       model: 'gemini-2.0-flash',
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Exam analysis error:', error)
-    return NextResponse.json({ error: 'Erro interno na análise' }, { status: 500 })
+    return NextResponse.json({ error: `Erro interno: ${error.message ?? 'desconhecido'}` }, { status: 500 })
   }
 }
