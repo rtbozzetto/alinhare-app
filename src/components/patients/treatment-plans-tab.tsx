@@ -764,8 +764,9 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                     type="number"
                     step="0.01"
                     min="0"
-                    value={form.price}
+                    value={form.price || ''}
                     onChange={e => updateField('price', parseFloat(e.target.value) || 0)}
+                    placeholder="0.00"
                   />
                 </div>
 
@@ -776,9 +777,10 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                       type="number"
                       step="0.01"
                       min="0"
-                      value={form.discount_amount}
+                      value={form.discount_amount || ''}
                       onChange={e => updateField('discount_amount', parseFloat(e.target.value) || 0)}
                       className="flex-1"
+                      placeholder="0.00"
                     />
                     <Select
                       value={form.discount_type}
@@ -1027,8 +1029,9 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                     type="number"
                     step="0.01"
                     min="0"
-                    value={editForm.price}
+                    value={editForm.price || ''}
                     onChange={e => updateEditField('price', parseFloat(e.target.value) || 0)}
+                    placeholder="0.00"
                   />
                 </div>
 
@@ -1039,9 +1042,10 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                       type="number"
                       step="0.01"
                       min="0"
-                      value={editForm.discount_amount}
+                      value={editForm.discount_amount || ''}
                       onChange={e => updateEditField('discount_amount', parseFloat(e.target.value) || 0)}
                       className="flex-1"
+                      placeholder="0.00"
                     />
                     <Select
                       value={editForm.discount_type}

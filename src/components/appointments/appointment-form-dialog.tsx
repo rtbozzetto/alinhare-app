@@ -150,6 +150,51 @@ export function AppointmentFormDialog({
     }
   }
 
+  // When appointment type changes, update price from price tables
+  function handleTypeChange(type: string) {
+    updateField('appointment_type', type)
+    if (isEdit) return
+
+    // Determine protocol from selected professional
+    const prof = activeProfessionals.find(p => p.id === form.professional_id)
+    const protocol: ProtocolKey = prof?.full_name?.toLowerCase().includes('janain') ? 'janaina' : 'quiropraxistas'
+
+    if (type === 'avaliacao') {
+      const evalPrice = getEvaluationPrice(protocol)
+      updateField('custom_price', evalPrice)
+      updateField('payment_status', 'nao_pago')
+    } else if (type === 'tratamento') {
+      // Use active plan price if available
+      if (activePlan && activePlan.plan_type === 'treatment') {
+        const perSession = activePlan.total_sessions > 0
+          ? Math.round((activePlan.final_paid_amount ?? activePlan.price) / activePlan.total_sessions * 100) / 100
+          : 0
+        updateField('custom_price', perSession)
+        updateField('payment_status', activePlan.payment_status === 'pago' ? 'pago_pacote' : 'nao_pago')
+      } else {
+        const options = getPlanOptions(protocol, 'treatment')
+        const recommended = options.find(o => o.recommended) || options[0]
+        if (recommended) {
+          updateField('custom_price', Math.round(recommended.price / recommended.sessions * 100) / 100)
+        }
+      }
+    } else if (type === 'manutencao') {
+      if (activePlan && activePlan.plan_type === 'maintenance') {
+        const perSession = activePlan.total_sessions > 0
+          ? Math.round((activePlan.final_paid_amount ?? activePlan.price) / activePlan.total_sessions * 100) / 100
+          : 0
+        updateField('custom_price', perSession)
+        updateField('payment_status', activePlan.payment_status === 'pago' ? 'pago_pacote' : 'nao_pago')
+      } else {
+        const options = getPlanOptions(protocol, 'maintenance')
+        const recommended = options.find(o => o.recommended) || options[0]
+        if (recommended) {
+          updateField('custom_price', Math.round(recommended.price / recommended.sessions * 100) / 100)
+        }
+      }
+    }
+  }
+
   // Fetch active plan when patient is selected (new appointments only)
   async function fetchActivePlan(patientId: string) {
     if (isEdit) return
@@ -187,13 +232,20 @@ export function AppointmentFormDialog({
         maintenance: 'manutencao',
         avaliacao: 'avaliacao',
       }
+      const appointmentType = typeMap[plan.plan_type] || 'tratamento'
+      // Calculate per-session price from plan
+      const perSessionPrice = plan.total_sessions > 0
+        ? Math.round((plan.final_paid_amount ?? plan.price) / plan.total_sessions * 100) / 100
+        : 0
       setForm(prev => ({
         ...prev,
         professional_id: plan.professional_id,
-        appointment_type: typeMap[plan.plan_type] || 'tratamento',
-        payment_status: 'pago_pacote',
+        appointment_type: appointmentType,
+        payment_status: plan.payment_status === 'pago' || plan.payment_status === 'pago_parcial' ? 'pago_pacote' : 'nao_pago',
         payment_method: plan.payment_method,
-        custom_price: 0,
+        custom_price: perSessionPrice,
+        discount_amount: 0,
+        discount_type: 'value',
         lead_source: plan.lead_source,
         lead_professional_id: plan.lead_professional_id,
       }))
@@ -422,7 +474,7 @@ export function AppointmentFormDialog({
               <Label>Tipo</Label>
               <Select
                 value={form.appointment_type}
-                onValueChange={(value: string) => updateField('appointment_type', value)}
+                onValueChange={(value: string) => handleTypeChange(value)}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -510,6 +562,13 @@ export function AppointmentFormDialog({
             />
           </div>
 
+          {/* Active plan indicator */}
+          {activePlan && !isEdit && (
+            <div className="rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-800">
+              <span className="font-medium">Plano ativo:</span> {activePlan.plan_name} — {activePlan.total_sessions} sessoes ({activePlan.payment_status === 'pago' ? 'Pago' : activePlan.payment_status === 'pago_parcial' ? 'Pago parcial' : 'Nao pago'})
+            </div>
+          )}
+
           {/* Payment section */}
           <div className="space-y-4 rounded-lg border p-4">
             <h3 className="font-medium">Pagamento</h3>
@@ -558,8 +617,9 @@ export function AppointmentFormDialog({
                   type="number"
                   step="0.01"
                   min="0"
-                  value={form.custom_price}
+                  value={form.custom_price || ''}
                   onChange={e => updateField('custom_price', parseFloat(e.target.value) || 0)}
+                  placeholder="0.00"
                 />
               </div>
 
@@ -572,9 +632,10 @@ export function AppointmentFormDialog({
                     type="number"
                     step="0.01"
                     min="0"
-                    value={form.discount_amount}
+                    value={form.discount_amount || ''}
                     onChange={e => updateField('discount_amount', parseFloat(e.target.value) || 0)}
                     className="flex-1"
+                    placeholder="0.00"
                   />
                   <Select
                     value={form.discount_type}
