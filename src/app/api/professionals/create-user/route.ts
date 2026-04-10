@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
         // Try sending recovery email first
         const { error: resetError } = await adminClient.auth.resetPasswordForEmail(email, {
-          redirectTo: `${siteUrl}/auth/callback?next=/reset-password?type=recovery`,
+          redirectTo: `${siteUrl}/reset-password?type=recovery`,
         })
         console.log('[create-user] existing user resetPasswordForEmail:', resetError?.message || 'ok')
 
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
           const { data: linkData } = await adminClient.auth.admin.generateLink({
             type: 'recovery',
             email,
-            options: { redirectTo: `${siteUrl}/auth/callback?next=/reset-password?type=recovery` },
+            options: { redirectTo: `${siteUrl}/reset-password?type=recovery` },
           })
           recoveryLink = linkData?.properties?.action_link || null
         }
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
 
     // 5. Try sending recovery email first
     const { error: resetError } = await adminClient.auth.resetPasswordForEmail(email, {
-      redirectTo: `${siteUrl}/auth/callback?next=/reset-password?type=recovery`,
+      redirectTo: `${siteUrl}/reset-password?type=recovery`,
     })
     console.log('[create-user] resetPasswordForEmail:', resetError?.message || 'ok')
 
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
       const { data: linkData } = await adminClient.auth.admin.generateLink({
         type: 'recovery',
         email,
-        options: { redirectTo: `${siteUrl}/auth/callback?next=/reset-password?type=recovery` },
+        options: { redirectTo: `${siteUrl}/reset-password?type=recovery` },
       })
       recoveryLink = linkData?.properties?.action_link || null
     }

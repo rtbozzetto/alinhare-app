@@ -1,9 +1,10 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/use-auth'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,6 +15,7 @@ import { toast } from 'sonner'
 function ResetPasswordContent() {
   const searchParams = useSearchParams()
   const isRecovery = searchParams.get('type') === 'recovery'
+  const code = searchParams.get('code')
   const router = useRouter()
   const { resetPassword, updatePassword } = useAuth()
 
@@ -24,6 +26,40 @@ function ResetPasswordContent() {
   const [sent, setSent] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [sessionReady, setSessionReady] = useState(false)
+  const [sessionError, setSessionError] = useState(false)
+
+  // Exchange PKCE code for session if present
+  useEffect(() => {
+    if (code) {
+      const supabase = createClient()
+      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+        if (error) {
+          console.error('Code exchange error:', error.message)
+          setSessionError(true)
+        } else {
+          setSessionReady(true)
+        }
+      })
+    }
+  }, [code])
+
+  // Listen for auth state changes (handles hash fragment tokens from implicit flow)
+  useEffect(() => {
+    if (!code && isRecovery) {
+      const supabase = createClient()
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          setSessionReady(true)
+        }
+      })
+      // Check if session already exists
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) setSessionReady(true)
+      })
+      return () => subscription.unsubscribe()
+    }
+  }, [code, isRecovery])
 
   async function handleRequestReset(e: React.FormEvent) {
     e.preventDefault()
@@ -52,6 +88,7 @@ function ResetPasswordContent() {
     const { error } = await updatePassword(password)
     setLoading(false)
     if (error) {
+      console.error('Update password error:', error)
       toast.error('Erro ao atualizar senha. O link pode ter expirado.')
     } else {
       toast.success('Senha definida com sucesso!')
@@ -60,7 +97,49 @@ function ResetPasswordContent() {
   }
 
   // Recovery mode: user came from email link, set new password
-  if (isRecovery) {
+  if (isRecovery || code) {
+    // Show error if code exchange failed
+    if (sessionError) {
+      return (
+        <Card className="w-full max-w-sm">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-bold text-teal-600">
+              Link Expirado
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              Este link de recuperação expirou ou já foi utilizado. Solicite um novo.
+            </p>
+            <Link href="/reset-password">
+              <Button variant="outline" className="w-full">
+                Solicitar novo link
+              </Button>
+            </Link>
+            <Link href="/login">
+              <Button variant="ghost" className="w-full text-teal-600">
+                Voltar ao login
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )
+    }
+
+    // Show loading while exchanging code
+    if (code && !sessionReady && !sessionError) {
+      return (
+        <Card className="w-full max-w-sm">
+          <CardContent className="py-12">
+            <div className="flex flex-col items-center gap-4">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-600 border-t-transparent" />
+              <p className="text-sm text-muted-foreground">Verificando link...</p>
+            </div>
+          </CardContent>
+        </Card>
+      )
+    }
+
     return (
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
