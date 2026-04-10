@@ -612,9 +612,12 @@ export function SessionsTab({ patientId, onRequestNewPlan }: SessionsTabProps) {
                           <span className={cn('text-sm font-medium', session.completed && 'line-through text-muted-foreground')}>
                             Sessao {session.session_number}
                           </span>
-                          {session.session_date && session.session_date.length >= 10 ? (
+                          {session.session_date ? (
                             <p className="text-xs text-muted-foreground">
-                              {new Date(session.session_date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                              {(() => {
+                                const d = new Date(session.session_date)
+                                return isNaN(d.getTime()) ? 'Sem data' : d.toLocaleDateString('pt-BR', { timeZone: 'UTC' })
+                              })()}
                             </p>
                           ) : (
                             <p className="text-xs text-muted-foreground">Sem data</p>
