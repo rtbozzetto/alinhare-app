@@ -26,40 +26,74 @@ function ResetPasswordContent() {
   const [sent, setSent] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+
+  // Session state for recovery flow
+  const [verifying, setVerifying] = useState(isRecovery || !!code)
   const [sessionReady, setSessionReady] = useState(false)
   const [sessionError, setSessionError] = useState(false)
 
-  // Exchange PKCE code for session if present
   useEffect(() => {
+    if (!isRecovery && !code) return
+
+    const supabase = createClient()
+    let resolved = false
+
+    function resolve(success: boolean) {
+      if (resolved) return
+      resolved = true
+      if (success) {
+        setSessionReady(true)
+      } else {
+        setSessionError(true)
+      }
+      setVerifying(false)
+    }
+
+    // Strategy 1: Exchange PKCE code if present
     if (code) {
-      const supabase = createClient()
       supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
         if (error) {
           console.error('Code exchange error:', error.message)
-          setSessionError(true)
+          // Don't resolve as error yet — maybe implicit flow will work
         } else {
-          setSessionReady(true)
+          resolve(true)
         }
       })
     }
-  }, [code])
 
-  // Listen for auth state changes (handles hash fragment tokens from implicit flow)
-  useEffect(() => {
-    if (!code && isRecovery) {
-      const supabase = createClient()
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-        if (event === 'PASSWORD_RECOVERY') {
-          setSessionReady(true)
-        }
-      })
-      // Check if session already exists
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session) setSessionReady(true)
-      })
-      return () => subscription.unsubscribe()
+    // Strategy 2: Listen for PASSWORD_RECOVERY event (implicit flow / hash tokens)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state change:', event, !!session)
+      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
+        resolve(true)
+      }
+    })
+
+    // Strategy 3: Check if session already exists (hash might be auto-processed)
+    const checkSession = async () => {
+      // Small delay to allow Supabase to process hash tokens
+      await new Promise(r => setTimeout(r, 1000))
+      if (resolved) return
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        resolve(true)
+      }
     }
-  }, [code, isRecovery])
+    checkSession()
+
+    // Timeout: if nothing worked after 5 seconds, show error
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        console.error('Session verification timed out')
+        resolve(false)
+      }
+    }, 5000)
+
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(timeout)
+    }
+  }, [isRecovery, code])
 
   async function handleRequestReset(e: React.FormEvent) {
     e.preventDefault()
@@ -96,9 +130,23 @@ function ResetPasswordContent() {
     }
   }
 
-  // Recovery mode: user came from email link, set new password
+  // Recovery mode
   if (isRecovery || code) {
-    // Show error if code exchange failed
+    // Loading: verifying the link
+    if (verifying) {
+      return (
+        <Card className="w-full max-w-sm">
+          <CardContent className="py-12">
+            <div className="flex flex-col items-center gap-4">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-600 border-t-transparent" />
+              <p className="text-sm text-muted-foreground">Verificando link...</p>
+            </div>
+          </CardContent>
+        </Card>
+      )
+    }
+
+    // Error: link expired or invalid
     if (sessionError) {
       return (
         <Card className="w-full max-w-sm">
@@ -126,90 +174,79 @@ function ResetPasswordContent() {
       )
     }
 
-    // Show loading while exchanging code
-    if (code && !sessionReady && !sessionError) {
+    // Session ready: show password form
+    if (sessionReady) {
       return (
         <Card className="w-full max-w-sm">
-          <CardContent className="py-12">
-            <div className="flex flex-col items-center gap-4">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-600 border-t-transparent" />
-              <p className="text-sm text-muted-foreground">Verificando link...</p>
-            </div>
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-bold text-teal-600">
+              Bem-vindo(a) à Alinhare
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Defina sua senha de acesso
+            </p>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSetPassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="password">Nova senha</Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Mínimo 6 caracteres"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    required
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowPassword(!showPassword)}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm">Confirmar senha</Label>
+                <div className="relative">
+                  <Input
+                    id="confirm"
+                    type={showConfirm ? 'text' : 'password'}
+                    placeholder="Repita a senha"
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    required
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowConfirm(!showConfirm)}
+                    tabIndex={-1}
+                  >
+                    {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {confirmPassword && password !== confirmPassword && (
+                  <p className="text-xs text-red-500">As senhas não coincidem</p>
+                )}
+              </div>
+              <Button
+                type="submit"
+                className="w-full bg-teal-600 hover:bg-teal-700"
+                disabled={loading || !password || !confirmPassword || password !== confirmPassword}
+              >
+                {loading ? 'Salvando...' : 'Definir senha'}
+              </Button>
+            </form>
           </CardContent>
         </Card>
       )
     }
-
-    return (
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-teal-600">
-            Bem-vindo(a) à Alinhare
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Defina sua senha de acesso
-          </p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSetPassword} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="password">Nova senha</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Mínimo 6 caracteres"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  required
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowPassword(!showPassword)}
-                  tabIndex={-1}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm">Confirmar senha</Label>
-              <div className="relative">
-                <Input
-                  id="confirm"
-                  type={showConfirm ? 'text' : 'password'}
-                  placeholder="Repita a senha"
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
-                  required
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowConfirm(!showConfirm)}
-                  tabIndex={-1}
-                >
-                  {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              {confirmPassword && password !== confirmPassword && (
-                <p className="text-xs text-red-500">As senhas não coincidem</p>
-              )}
-            </div>
-            <Button
-              type="submit"
-              className="w-full bg-teal-600 hover:bg-teal-700"
-              disabled={loading || !password || !confirmPassword || password !== confirmPassword}
-            >
-              {loading ? 'Salvando...' : 'Definir senha'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    )
   }
 
   // Request mode: user wants to reset password
