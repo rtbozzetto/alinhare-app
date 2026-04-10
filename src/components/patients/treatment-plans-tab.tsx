@@ -514,6 +514,12 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
     setSchedulePreview(prev => prev.map((item, i) => i === index ? { ...item, time } : item))
   }
 
+  function updatePreviewDate(index: number, date: string) {
+    const d = new Date(date + 'T12:00:00')
+    const label = format(d, "EEE, dd/MM", { locale: ptBR })
+    setSchedulePreview(prev => prev.map((item, i) => i === index ? { ...item, date, label } : item))
+  }
+
   async function handleCreateBatchAppointments() {
     if (!schedulingPlan || schedulePreview.length === 0) return
     setSavingSchedule(true)
@@ -1295,13 +1301,18 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                 <div className="max-h-60 overflow-y-auto rounded-lg border divide-y">
                   {schedulePreview.map((item, i) => (
                     <div key={i} className="flex items-center gap-2 px-3 py-2">
-                      <span className="text-sm font-medium w-8 text-muted-foreground">{i + 1}.</span>
-                      <span className="text-sm flex-1 capitalize">{item.label}</span>
+                      <span className="text-sm font-medium w-6 text-muted-foreground shrink-0">{i + 1}.</span>
+                      <Input
+                        type="date"
+                        value={item.date}
+                        onChange={e => updatePreviewDate(i, e.target.value)}
+                        className="h-8 text-sm w-36 shrink-0"
+                      />
                       <Select
                         value={item.time}
                         onValueChange={(value: string) => updatePreviewTime(i, value)}
                       >
-                        <SelectTrigger className="w-24">
+                        <SelectTrigger className="w-24 shrink-0">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1316,7 +1327,7 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                       <button
                         type="button"
                         onClick={() => removeFromPreview(i)}
-                        className="text-muted-foreground hover:text-red-500"
+                        className="text-muted-foreground hover:text-red-500 shrink-0"
                       >
                         <X className="h-4 w-4" />
                       </button>
