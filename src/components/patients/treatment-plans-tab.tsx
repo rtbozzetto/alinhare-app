@@ -801,7 +801,12 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                   <Label>Origem do Lead</Label>
                   <Select
                     value={form.lead_source}
-                    onValueChange={(value: string) => updateField('lead_source', value)}
+                    onValueChange={(value: string) => {
+                      updateField('lead_source', value)
+                      if (value === 'profissional' && !form.lead_professional_id) {
+                        updateField('lead_professional_id', form.professional_id)
+                      }
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -1066,7 +1071,12 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                   <Label>Origem do Lead</Label>
                   <Select
                     value={editForm.lead_source}
-                    onValueChange={(value: string) => updateEditField('lead_source', value)}
+                    onValueChange={(value: string) => {
+                      updateEditField('lead_source', value)
+                      if (value === 'profissional' && !editForm.lead_professional_id) {
+                        updateEditField('lead_professional_id', editForm.professional_id)
+                      }
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />

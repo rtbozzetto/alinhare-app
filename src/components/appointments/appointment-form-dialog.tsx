@@ -656,7 +656,12 @@ export function AppointmentFormDialog({
                 <Label>Origem do Lead</Label>
                 <Select
                   value={form.lead_source}
-                  onValueChange={(value: string) => updateField('lead_source', value)}
+                  onValueChange={(value: string) => {
+                    updateField('lead_source', value)
+                    if (value === 'profissional' && !form.lead_professional_id) {
+                      updateField('lead_professional_id', form.professional_id)
+                    }
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />
