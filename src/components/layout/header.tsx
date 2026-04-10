@@ -1,7 +1,6 @@
 'use client'
 
 import { useUserRole } from '@/hooks/use-user-role'
-import { NotificationBell } from '@/components/notifications/notification-bell'
 
 export function Header() {
   const { role } = useUserRole()
@@ -13,7 +12,7 @@ export function Header() {
       {/* Spacer for mobile hamburger */}
       <div className="w-10 md:hidden" />
       <span className="text-sm text-muted-foreground">{roleLabel}</span>
-      <NotificationBell />
+      <div className="w-10" />
     </header>
   )
 }

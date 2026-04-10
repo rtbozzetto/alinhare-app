@@ -53,7 +53,7 @@ function BillingContent() {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [filterProfId, setFilterProfId] = useState<string>('all')
 
-  const { appointments, closings, fetchAppointmentsByMonth, fetchClosings, closeMonth, reopenMonth, deleteAppointment, loading } =
+  const { appointments, paidPlans, closings, fetchAppointmentsByMonth, fetchClosings, closeMonth, reopenMonth, deleteAppointment, loading } =
     useBilling()
   const { activeProfessionals } = useProfessionals()
 
@@ -74,14 +74,32 @@ function BillingContent() {
     return appointments.filter(a => a.professional_id === filterProfId)
   }, [appointments, filterProfId])
 
+  const filteredPlans = useMemo(() => {
+    if (filterProfId === 'all') return paidPlans
+    return paidPlans.filter(p => p.professional_id === filterProfId)
+  }, [paidPlans, filterProfId])
+
   const totals = useMemo(() => {
-    const bruto = filteredAppointments.reduce((sum, a) => sum + (a.custom_price ?? 0), 0)
-    const desconto = filteredAppointments.reduce((sum, a) => sum + a.discount_amount, 0)
-    const liquido = filteredAppointments.reduce((sum, a) => sum + a.final_paid_amount, 0)
-    const repasse = filteredAppointments.reduce((sum, a) => sum + a.commission_amount, 0)
-    const clinica = filteredAppointments.reduce((sum, a) => sum + a.clinic_amount, 0)
-    return { bruto, desconto, liquido, repasse, clinica }
-  }, [filteredAppointments])
+    const apptBruto = filteredAppointments.reduce((sum, a) => sum + (a.custom_price ?? 0), 0)
+    const apptDesconto = filteredAppointments.reduce((sum, a) => sum + a.discount_amount, 0)
+    const apptLiquido = filteredAppointments.reduce((sum, a) => sum + a.final_paid_amount, 0)
+    const apptRepasse = filteredAppointments.reduce((sum, a) => sum + a.commission_amount, 0)
+    const apptClinica = filteredAppointments.reduce((sum, a) => sum + a.clinic_amount, 0)
+
+    const planBruto = filteredPlans.reduce((sum, p) => sum + p.price, 0)
+    const planDesconto = filteredPlans.reduce((sum, p) => sum + p.discount_amount, 0)
+    const planLiquido = filteredPlans.reduce((sum, p) => sum + p.final_paid_amount, 0)
+    const planRepasse = filteredPlans.reduce((sum, p) => sum + p.commission_amount, 0)
+    const planClinica = filteredPlans.reduce((sum, p) => sum + p.clinic_amount, 0)
+
+    return {
+      bruto: apptBruto + planBruto,
+      desconto: apptDesconto + planDesconto,
+      liquido: apptLiquido + planLiquido,
+      repasse: apptRepasse + planRepasse,
+      clinica: apptClinica + planClinica,
+    }
+  }, [filteredAppointments, filteredPlans])
 
   async function handleCloseMonth() {
     const { error } = await closeMonth(refMonth, {
@@ -90,8 +108,8 @@ function BillingContent() {
       total_liquido: totals.liquido,
       total_repasse: totals.repasse,
       total_clinica: totals.clinica,
-      total_appointments: filteredAppointments.length,
-      snapshot: filteredAppointments,
+      total_appointments: filteredAppointments.length + filteredPlans.length,
+      snapshot: [...filteredPlans.map(p => ({ ...p, _source: 'plan' })), ...filteredAppointments],
     })
     if (error) {
       toast.error('Erro ao fechar mes.')
@@ -212,14 +230,14 @@ function BillingContent() {
         )}
       </div>
 
-      {/* Appointments table */}
+      {/* Billing table */}
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-600 border-t-transparent" />
         </div>
-      ) : filteredAppointments.length === 0 ? (
+      ) : filteredAppointments.length === 0 && filteredPlans.length === 0 ? (
         <div className="py-12 text-center text-muted-foreground">
-          Nenhum agendamento neste periodo.
+          Nenhum registro neste periodo.
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -240,6 +258,34 @@ function BillingContent() {
             </TableRow>
           </TableHeader>
           <TableBody>
+            {/* Paid treatment plans */}
+            {filteredPlans.map(plan => (
+              <TableRow key={`plan-${plan.id}`} className="bg-teal-50/30">
+                <TableCell className="whitespace-nowrap">
+                  {new Date(plan.created_at).toLocaleDateString('pt-BR')}
+                </TableCell>
+                <TableCell className="whitespace-nowrap">{plan.patient_name}</TableCell>
+                <TableCell className="whitespace-nowrap">{plan.professional_name}</TableCell>
+                <TableCell>
+                  <span className="flex items-center gap-1">
+                    <Badge variant="outline" className="text-[10px] px-1 py-0">Plano</Badge>
+                    {plan.plan_name}
+                  </span>
+                </TableCell>
+                <TableCell>{formatCurrency(plan.price)}</TableCell>
+                <TableCell>{formatCurrency(plan.discount_amount)}</TableCell>
+                <TableCell>{formatCurrency(plan.final_paid_amount)}</TableCell>
+                <TableCell>{formatCurrency(plan.commission_amount)}</TableCell>
+                <TableCell>{formatCurrency(plan.clinic_amount)}</TableCell>
+                <TableCell>
+                  <Badge variant="default">
+                    {PAYMENT_STATUSES.find(s => s.value === plan.payment_status)?.label ?? plan.payment_status}
+                  </Badge>
+                </TableCell>
+                {!isClosed && <TableCell />}
+              </TableRow>
+            ))}
+            {/* Appointments */}
             {filteredAppointments.map(appt => (
               <TableRow key={appt.id}>
                 <TableCell className="whitespace-nowrap">

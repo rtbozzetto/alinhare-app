@@ -278,7 +278,11 @@ export function AppointmentFormDialog({
   const afterDiscount = Math.max(0, form.custom_price - discountValue)
   const finalAmount = form.payment_method === 'cartao' ? applyCreditCardFee(afterDiscount) : afterDiscount
   const selectedProfessionalName = activeProfessionals.find(p => p.id === form.professional_id)?.full_name
-  const commission = calculateCommission(finalAmount, form.lead_source, selectedProfessionalName)
+  // When "pago no pacote", commission is zero (already accounted in the plan)
+  const isPagoPacote = form.payment_status === 'pago_pacote'
+  const commission = isPagoPacote
+    ? { professionalPercent: 0, clinicPercent: 0, professionalAmount: 0, clinicAmount: 0 }
+    : calculateCommission(finalAmount, form.lead_source, selectedProfessionalName)
 
   async function checkConflict(): Promise<string | null> {
     const { data } = await supabase

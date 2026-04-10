@@ -56,7 +56,7 @@ function ProfessionalDetailContent() {
         await fetch('/api/professionals/manage-access', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ professionalId: professional.id, action: 'delete' }),
+          body: JSON.stringify({ professional_id: professional.id, action: 'delete' }),
         })
       } catch {}
     }

@@ -1,11 +1,29 @@
 'use client'
 import { useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { type MonthlyClosing, type Appointment } from '@/types/database'
+import { type MonthlyClosing, type Appointment, type TreatmentPlan } from '@/types/database'
+
+export interface BillingPlanRow {
+  id: string
+  created_at: string
+  patient_name: string
+  professional_name: string
+  professional_id: string
+  plan_name: string
+  plan_type: string
+  price: number
+  discount_amount: number
+  final_paid_amount: number
+  payment_status: string
+  commission_amount: number
+  clinic_amount: number
+  lead_source: string
+}
 
 export function useBilling() {
   const [closings, setClosings] = useState<MonthlyClosing[]>([])
   const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [paidPlans, setPaidPlans] = useState<BillingPlanRow[]>([])
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
 
@@ -29,6 +47,33 @@ export function useBilling() {
       .lte('appointment_date', endDate)
       .order('appointment_date')
     if (data) setAppointments(data as Appointment[])
+
+    // Also fetch paid treatment plans created in this month
+    const { data: plans } = await supabase
+      .from('treatment_plans')
+      .select('*, patient:patients(full_name), professional:professionals!professional_id(id, full_name)')
+      .in('payment_status', ['pago', 'pago_pacote'])
+      .gte('created_at', `${startDate}T00:00:00`)
+      .lte('created_at', `${endDate}T23:59:59`)
+      .order('created_at')
+    if (plans) {
+      setPaidPlans(plans.map((p: any) => ({
+        id: p.id,
+        created_at: p.created_at,
+        patient_name: p.patient?.full_name ?? '-',
+        professional_name: p.professional?.full_name ?? '-',
+        professional_id: p.professional_id,
+        plan_name: p.plan_name,
+        plan_type: p.plan_type,
+        price: p.price,
+        discount_amount: p.discount_amount,
+        final_paid_amount: p.final_paid_amount,
+        payment_status: p.payment_status,
+        commission_amount: p.commission_amount,
+        clinic_amount: p.clinic_amount,
+        lead_source: p.lead_source,
+      })))
+    }
   }, [supabase])
 
   const closeMonth = async (
@@ -89,6 +134,7 @@ export function useBilling() {
   return {
     closings,
     appointments,
+    paidPlans,
     loading,
     fetchClosings,
     fetchAppointmentsByMonth,

@@ -54,17 +54,6 @@ export function useAppointments() {
       return { data: null, error }
     }
     setAppointments(prev => [...prev, data as Appointment])
-    // Create notification (non-blocking)
-    supabase.from('notifications').insert({
-      recipient_professional_id: appointment.professional_id,
-      recipient_admin: true,
-      title: 'Novo agendamento',
-      message: `Agendamento criado para ${(data as any).patient?.full_name || 'paciente'}`,
-      type: 'appointment',
-      related_appointment_id: data.id,
-    }).then(({ error: notifError }) => {
-      if (notifError) console.error('Notification insert error:', notifError)
-    })
     return { data, error: null }
   }
 

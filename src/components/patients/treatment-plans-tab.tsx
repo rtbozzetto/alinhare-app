@@ -734,7 +734,7 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {PAYMENT_STATUSES.map(s => (
+                      {PAYMENT_STATUSES.filter(s => s.value !== 'pago_pacote').map(s => (
                         <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                       ))}
                     </SelectContent>
@@ -1004,7 +1004,7 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {PAYMENT_STATUSES.map(s => (
+                      {PAYMENT_STATUSES.filter(s => s.value !== 'pago_pacote').map(s => (
                         <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                       ))}
                     </SelectContent>
