@@ -23,46 +23,75 @@ export async function POST(request: Request) {
     }
 
     // 3. Create auth user with admin client
-    const admin = await createServerSupabaseAdmin()
+    const adminClient = await createServerSupabaseAdmin()
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://alinhare-app.vercel.app'
 
-    const { data: authData, error: authError } = await admin.auth.admin.createUser({
+    const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
       email,
       email_confirm: true,
       user_metadata: { role: 'profissional' },
     })
     if (authError) {
+      console.error('[create-user] createUser error:', authError.message)
       // Check if user already exists
-      const { data: existingUsers } = await admin.auth.admin.listUsers()
+      const { data: existingUsers } = await adminClient.auth.admin.listUsers()
       const existing = existingUsers?.users?.find((u: any) => u.email === email)
       if (existing) {
         // Link existing user
-        await admin.from('professionals').update({ auth_user_id: existing.id }).eq('id', professional_id)
-        await admin.from('user_roles').upsert({ user_id: existing.id, role: 'profissional' }, { onConflict: 'user_id,role' })
-        // Send password reset email
-        await admin.auth.resetPasswordForEmail(email, {
+        await adminClient.from('professionals').update({ auth_user_id: existing.id }).eq('id', professional_id)
+        await adminClient.from('user_roles').upsert({ user_id: existing.id, role: 'profissional' }, { onConflict: 'user_id,role' })
+        // Generate recovery link (this sends the email automatically)
+        const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
+          type: 'recovery',
+          email,
+          options: { redirectTo: `${siteUrl}/auth/callback?next=/reset-password?type=recovery` },
+        })
+        console.error('[create-user] existing user generateLink:', linkError?.message || 'ok', linkData?.properties?.action_link ? 'link generated' : 'no link')
+
+        // Also send via resetPasswordForEmail as backup
+        const { error: resetError } = await adminClient.auth.resetPasswordForEmail(email, {
           redirectTo: `${siteUrl}/auth/callback?next=/reset-password?type=recovery`,
         })
-        return NextResponse.json({ success: true, user_id: existing.id, already_existed: true })
+        console.error('[create-user] existing user resetPasswordForEmail:', resetError?.message || 'ok')
+
+        return NextResponse.json({
+          success: true,
+          user_id: existing.id,
+          already_existed: true,
+          recovery_link: linkData?.properties?.action_link || null,
+          email_error: resetError?.message || linkError?.message || null,
+        })
       }
       return NextResponse.json({ error: authError.message }, { status: 400 })
     }
 
     // 4. Link to professional and assign role
-    await admin.from('professionals').update({ auth_user_id: authData.user.id }).eq('id', professional_id)
-    await admin.from('user_roles').insert({ user_id: authData.user.id, role: 'profissional' })
+    await adminClient.from('professionals').update({ auth_user_id: authData.user.id }).eq('id', professional_id)
+    await adminClient.from('user_roles').insert({ user_id: authData.user.id, role: 'profissional' })
 
-    // 5. Send recovery email so professional can set their password
-    await admin.auth.resetPasswordForEmail(email, {
+    // 5. Generate recovery link (sends email) so professional can set password
+    const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
+      type: 'recovery',
+      email,
+      options: { redirectTo: `${siteUrl}/auth/callback?next=/reset-password?type=recovery` },
+    })
+    console.log('[create-user] generateLink:', linkError?.message || 'ok', linkData?.properties?.action_link ? 'link generated' : 'no link')
+
+    // Also send via resetPasswordForEmail as backup (this definitely sends the email)
+    const { error: resetError } = await adminClient.auth.resetPasswordForEmail(email, {
       redirectTo: `${siteUrl}/auth/callback?next=/reset-password?type=recovery`,
     })
+    console.log('[create-user] resetPasswordForEmail:', resetError?.message || 'ok')
 
     return NextResponse.json({
       success: true,
       user_id: authData.user.id,
       already_existed: false,
+      recovery_link: linkData?.properties?.action_link || null,
+      email_error: resetError?.message || linkError?.message || null,
     })
   } catch (err) {
+    console.error('[create-user] unexpected error:', err)
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
   }
 }

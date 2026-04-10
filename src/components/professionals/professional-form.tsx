@@ -24,6 +24,7 @@ export function ProfessionalForm({ professional }: ProfessionalFormProps) {
   const isEdit = !!professional
 
   const [saving, setSaving] = useState(false)
+  const [recoveryLink, setRecoveryLink] = useState<string | null>(null)
   const [form, setForm] = useState({
     full_name: professional?.full_name ?? '',
     email: professional?.email ?? '',
@@ -76,6 +77,7 @@ export function ProfessionalForm({ professional }: ProfessionalFormProps) {
       }
 
       // Create auth user for the professional
+      let hasRecoveryLink = false
       if (data && form.email) {
         try {
           const res = await fetch('/api/professionals/create-user', {
@@ -90,7 +92,16 @@ export function ProfessionalForm({ professional }: ProfessionalFormProps) {
           if (!res.ok) {
             toast.error(result.error || 'Erro ao criar usuario de acesso.')
           } else {
-            toast.success('Acesso criado! Email enviado para definir a senha.')
+            if (result.recovery_link) {
+              setRecoveryLink(result.recovery_link)
+              hasRecoveryLink = true
+            }
+            if (result.email_error) {
+              console.warn('Email send issue:', result.email_error)
+              toast.warning('Acesso criado, mas houve problema ao enviar email. Use o link abaixo.')
+            } else {
+              toast.success('Acesso criado! Email enviado para definir a senha.')
+            }
           }
         } catch (err) {
           console.error('Create user error:', err)
@@ -100,12 +111,50 @@ export function ProfessionalForm({ professional }: ProfessionalFormProps) {
 
       setSaving(false)
       toast.success('Profissional criado com sucesso!')
-      router.push('/profissionais')
+      if (!hasRecoveryLink) {
+        router.push('/profissionais')
+      }
     }
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {recoveryLink && (
+        <Card className="border-orange-300 bg-orange-50">
+          <CardContent className="pt-4 space-y-2">
+            <p className="text-sm font-medium text-orange-800">
+              Link para o profissional definir a senha (envie por WhatsApp se o email não chegar):
+            </p>
+            <div className="flex gap-2">
+              <Input
+                readOnly
+                value={recoveryLink}
+                className="text-xs bg-white"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(recoveryLink)
+                  toast.success('Link copiado!')
+                }}
+              >
+                Copiar
+              </Button>
+            </div>
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="text-orange-700 p-0"
+              onClick={() => router.push('/profissionais')}
+            >
+              Voltar para profissionais
+            </Button>
+          </CardContent>
+        </Card>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>Dados do Profissional</CardTitle>
