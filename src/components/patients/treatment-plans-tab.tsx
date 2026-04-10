@@ -71,6 +71,8 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
   const [scheduleStartDate, setScheduleStartDate] = useState(new Date().toISOString().split('T')[0])
   const [schedulePreview, setSchedulePreview] = useState<Array<{ date: string; time: string; label: string }>>([])
   const [savingSchedule, setSavingSchedule] = useState(false)
+  const [existingAppointments, setExistingAppointments] = useState<Array<{ id: string; date: string; time: string }>>([])
+  const [existingAlertOpen, setExistingAlertOpen] = useState(false)
 
   const [form, setForm] = useState({
     professional_id: professionalId ?? '',
@@ -398,12 +400,39 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
 
   const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
-  function openScheduleDialog(plan: TreatmentPlan) {
+  async function openScheduleDialog(plan: TreatmentPlan) {
     setSchedulingPlan(plan)
     setScheduleDays({})
     setScheduleStartDate(new Date().toISOString().split('T')[0])
     setSchedulePreview([])
-    setScheduleDialogOpen(true)
+
+    // Check for existing appointments for this plan's patient + professional + type
+    const supabase = createClient()
+    const typeMap: Record<string, string> = {
+      treatment: 'tratamento',
+      maintenance: 'manutencao',
+      avaliacao: 'avaliacao',
+    }
+    const { data: existing } = await supabase
+      .from('appointments')
+      .select('id, appointment_date, appointment_time')
+      .eq('patient_id', patientId)
+      .eq('professional_id', plan.professional_id)
+      .eq('appointment_type', typeMap[plan.plan_type] || 'tratamento')
+      .neq('status', 'cancelada')
+      .order('appointment_date')
+
+    if (existing && existing.length > 0) {
+      setExistingAppointments(existing.map(a => ({
+        id: a.id,
+        date: a.appointment_date,
+        time: a.appointment_time?.slice(0, 5) ?? '',
+      })))
+      setExistingAlertOpen(true)
+    } else {
+      setExistingAppointments([])
+      setScheduleDialogOpen(true)
+    }
   }
 
   function toggleScheduleDay(day: number) {
@@ -1310,8 +1339,35 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
           <div className="flex flex-col gap-2 pt-2">
             <Button
               className="w-full bg-teal-600 hover:bg-teal-700"
-              onClick={() => {
+              onClick={async () => {
                 setSchedulePromptOpen(false)
+                if (createdPlan) {
+                  // Check existing appointments before opening single form
+                  const supabase = createClient()
+                  const typeMap: Record<string, string> = {
+                    treatment: 'tratamento',
+                    maintenance: 'manutencao',
+                    avaliacao: 'avaliacao',
+                  }
+                  const { data: existing } = await supabase
+                    .from('appointments')
+                    .select('id, appointment_date, appointment_time')
+                    .eq('patient_id', patientId)
+                    .eq('professional_id', createdPlan.professional_id)
+                    .eq('appointment_type', typeMap[createdPlan.plan_type] || 'tratamento')
+                    .neq('status', 'cancelada')
+                    .order('appointment_date')
+                  if (existing && existing.length > 0) {
+                    setSchedulingPlan(createdPlan)
+                    setExistingAppointments(existing.map(a => ({
+                      id: a.id,
+                      date: a.appointment_date,
+                      time: a.appointment_time?.slice(0, 5) ?? '',
+                    })))
+                    setExistingAlertOpen(true)
+                    return
+                  }
+                }
                 setSingleAppointmentOpen(true)
               }}
             >
@@ -1356,6 +1412,69 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
         defaultPatientName={patientName}
         defaultProfessionalId={createdPlan?.professional_id}
       />
+
+      {/* Existing appointments alert */}
+      <Dialog open={existingAlertOpen} onOpenChange={setExistingAlertOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Agendamentos já existentes</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Este plano já possui {existingAppointments.length} agendamento(s):
+          </p>
+          <div className="max-h-40 overflow-y-auto rounded-md border divide-y">
+            {existingAppointments.map((a, i) => (
+              <div key={a.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                <span className="font-medium">
+                  {new Date(a.date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                </span>
+                <span className="text-muted-foreground">{a.time}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Deseja substituir os agendamentos existentes?
+          </p>
+          <div className="flex flex-col gap-2 pt-2">
+            <Button
+              className="w-full bg-orange-600 hover:bg-orange-700"
+              onClick={async () => {
+                // Delete existing appointments and open schedule dialog
+                const supabase = createClient()
+                for (const a of existingAppointments) {
+                  await supabase.from('appointments').delete().eq('id', a.id)
+                }
+                toast.success(`${existingAppointments.length} agendamento(s) removido(s).`)
+                setExistingAppointments([])
+                setExistingAlertOpen(false)
+                setScheduleDialogOpen(true)
+              }}
+            >
+              Substituir agendamentos
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                setExistingAlertOpen(false)
+                setScheduleDialogOpen(true)
+              }}
+            >
+              Manter e adicionar novos
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full text-muted-foreground"
+              onClick={() => {
+                setExistingAlertOpen(false)
+                setExistingAppointments([])
+              }}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
