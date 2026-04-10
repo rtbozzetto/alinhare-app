@@ -12,22 +12,43 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json()
-  const { examId, fileUrl, fileName, fileType, examDescription, patientData } = body
+  const { examId } = body
 
-  if (!examId || !fileUrl) {
-    return NextResponse.json({ error: 'Dados do exame incompletos' }, { status: 400 })
+  if (!examId) {
+    return NextResponse.json({ error: 'examId é obrigatório' }, { status: 400 })
   }
 
-  // Download the exam file
+  // Fetch exam record from DB
+  const { data: exam, error: examError } = await supabase
+    .from('patient_exams')
+    .select('*, patient:patients(*)')
+    .eq('id', examId)
+    .single()
+
+  if (examError || !exam) {
+    return NextResponse.json({ error: 'Exame não encontrado' }, { status: 404 })
+  }
+
+  // Generate server-side signed URL and download the file
   let fileParts: any[] = []
   try {
-    const fileResponse = await fetch(fileUrl)
-    if (!fileResponse.ok) {
+    const { data: signedData, error: signError } = await supabase.storage
+      .from('exam-files')
+      .createSignedUrl(exam.file_url, 600)
+
+    if (signError || !signedData?.signedUrl) {
+      console.error('Failed to create signed URL:', signError)
       return NextResponse.json({ error: 'Não foi possível acessar o arquivo do exame' }, { status: 400 })
     }
+
+    const fileResponse = await fetch(signedData.signedUrl)
+    if (!fileResponse.ok) {
+      return NextResponse.json({ error: 'Não foi possível baixar o arquivo do exame' }, { status: 400 })
+    }
+
     const fileBuffer = await fileResponse.arrayBuffer()
     const base64 = Buffer.from(fileBuffer).toString('base64')
-    const contentType = fileResponse.headers.get('content-type') || fileType || 'application/octet-stream'
+    const contentType = fileResponse.headers.get('content-type') || exam.file_type || 'application/octet-stream'
 
     // Gemini supports images and PDFs
     if (contentType.startsWith('image/') || contentType === 'application/pdf') {
@@ -38,9 +59,8 @@ export async function POST(request: Request) {
         },
       })
     } else {
-      // For other file types, just use the description/name as context
       fileParts.push({
-        text: `[Arquivo: ${fileName} - tipo: ${contentType}. Não é possível analisar visualmente este formato, use apenas a descrição do exame.]`,
+        text: `[Arquivo: ${exam.file_name} - tipo: ${contentType}. Não é possível analisar visualmente este formato, use apenas a descrição do exame.]`,
       })
     }
   } catch (err) {
@@ -49,23 +69,24 @@ export async function POST(request: Request) {
   }
 
   // Build patient context
+  const patient = exam.patient
   let patientContext = ''
-  if (patientData) {
-    const age = patientData.birth_date
-      ? Math.floor((Date.now() - new Date(patientData.birth_date).getTime()) / 31557600000)
+  if (patient) {
+    const age = patient.birth_date
+      ? Math.floor((Date.now() - new Date(patient.birth_date).getTime()) / 31557600000)
       : null
 
     patientContext = `
 ## Dados do Paciente
-- Nome: ${patientData.full_name || 'Não informado'}
+- Nome: ${patient.full_name || 'Não informado'}
 - Idade: ${age ?? 'Não informada'}
-- Sexo: ${patientData.sex || 'Não informado'}
-- Queixa principal: ${patientData.main_complaint || 'Não informada'}
-- Prática esportiva: ${patientData.sport || 'Não informada'}
-- Histórico cirúrgico: ${patientData.surgery_history || 'Nenhum'}
-- Medicamentos: ${patientData.medication || 'Nenhum'}
-- Problemas de saúde: ${patientData.health_problems || 'Nenhum'}
-${patientData.discomfort_regions?.length ? `- Regiões de desconforto: ${patientData.discomfort_regions.join(', ')}` : ''}
+- Sexo: ${patient.sex || 'Não informado'}
+- Queixa principal: ${patient.main_complaint || 'Não informada'}
+- Prática esportiva: ${patient.sport || 'Não informada'}
+- Histórico cirúrgico: ${patient.surgery_history || 'Nenhum'}
+- Medicamentos: ${patient.medication || 'Nenhum'}
+- Problemas de saúde: ${patient.health_problems || 'Nenhum'}
+${patient.discomfort_regions?.length ? `- Regiões de desconforto: ${patient.discomfort_regions.join(', ')}` : ''}
 `
   }
 
@@ -73,8 +94,8 @@ ${patientData.discomfort_regions?.length ? `- Regiões de desconforto: ${patient
 Analise o exame médico a seguir e forneça uma interpretação detalhada e relevante para o tratamento fisioterapêutico.
 
 ## Sobre o Exame
-- Arquivo: ${fileName}
-${examDescription ? `- Descrição: ${examDescription}` : ''}
+- Arquivo: ${exam.file_name}
+${exam.exam_description ? `- Descrição: ${exam.exam_description}` : ''}
 
 ${patientContext}
 

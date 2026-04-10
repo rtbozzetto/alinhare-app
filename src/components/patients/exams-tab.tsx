@@ -109,24 +109,10 @@ export function ExamsTab({ patientId }: ExamsTabProps) {
   async function handleAnalyze(exam: PatientExam) {
     setAnalyzingId(exam.id)
     try {
-      // Get patient data for context
-      const { data: patient } = await supabase
-        .from('patients')
-        .select('*')
-        .eq('id', patientId)
-        .single()
-
       const response = await fetch('/api/ai/analyze-exam', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          examId: exam.id,
-          fileUrl: exam.file_url,
-          fileName: exam.file_name,
-          fileType: exam.file_type,
-          examDescription: exam.exam_description,
-          patientData: patient,
-        }),
+        body: JSON.stringify({ examId: exam.id }),
       })
 
       if (!response.ok) {
