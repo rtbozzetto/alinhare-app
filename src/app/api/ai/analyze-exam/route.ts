@@ -125,7 +125,7 @@ Sugestões adicionais (outros exames, encaminhamentos, acompanhamento).
 Seja objetivo, técnico e prático nas recomendações.`
 
     // Try multiple Gemini models (fallback on rate limit)
-    const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b']
+    const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
     const requestBody = JSON.stringify({
       contents: [
         {
@@ -174,15 +174,22 @@ Seja objetivo, técnico e prático nas recomendações.`
 
     if (!geminiResponse || !geminiResponse.ok) {
       const status = geminiResponse?.status ?? 502
+      // Parse error details from Gemini response
+      let errorDetail = ''
+      try {
+        const parsed = JSON.parse(lastError)
+        errorDetail = parsed?.error?.message || parsed?.error?.status || ''
+      } catch { errorDetail = lastError.slice(0, 300) }
+
       let msg: string
       if (status === 429) {
-        msg = 'Limite do Gemini atingido em todos os modelos. Verifique sua cota em aistudio.google.com'
+        msg = `Limite do Gemini atingido. ${errorDetail || 'Verifique sua cota em aistudio.google.com'}`
       } else if (status === 403) {
-        msg = 'API key sem permissão. Verifique se a Generative Language API está ativada no Google Cloud.'
-      } else if (status === 400) {
-        msg = `Erro na requisição: ${lastError.slice(0, 200)}`
+        msg = `API key sem permissão: ${errorDetail || 'Verifique se a Generative Language API está ativada.'}`
+      } else if (status === 404) {
+        msg = `Modelo não encontrado: ${errorDetail || 'Verifique se a API key é válida.'}`
       } else {
-        msg = `Erro na API Gemini: ${status}`
+        msg = `Erro Gemini ${status}: ${errorDetail || 'erro desconhecido'}`
       }
       return NextResponse.json({ error: msg }, { status: 502 })
     }
