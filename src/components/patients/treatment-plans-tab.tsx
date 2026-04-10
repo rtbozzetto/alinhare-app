@@ -580,6 +580,14 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
       .filter(s => s.plan_id === schedulingPlan.id && !s.completed)
       .sort((a, b) => a.session_number - b.session_number)
 
+    const isPlanPaid = schedulingPlan.payment_status === 'pago' || schedulingPlan.payment_status === 'pago_pacote'
+    const perSessionPrice = !isPlanPaid && schedulingPlan.total_sessions > 0
+      ? Math.round((schedulingPlan.final_paid_amount ?? schedulingPlan.price) / schedulingPlan.total_sessions * 100) / 100
+      : 0
+    const perSessionCommission = !isPlanPaid
+      ? calculateCommission(perSessionPrice, schedulingPlan.lead_source, activeProfessionals.find(p => p.id === schedulingPlan.professional_id)?.full_name)
+      : { professionalPercent: 0, clinicPercent: 0, professionalAmount: 0, clinicAmount: 0 }
+
     for (let i = 0; i < schedulePreview.length; i++) {
       const item = schedulePreview[i]
       const { error } = await supabase.from('appointments').insert({
@@ -589,17 +597,17 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
         appointment_time: item.time,
         appointment_type: typeMap[schedulingPlan.plan_type] || 'tratamento',
         status: 'agendada',
-        payment_status: 'pago_pacote',
+        payment_status: isPlanPaid ? 'pago_pacote' : 'nao_pago',
         payment_method: schedulingPlan.payment_method,
-        custom_price: 0,
+        custom_price: perSessionPrice,
         discount_amount: 0,
         discount_type: 'value',
-        final_paid_amount: 0,
+        final_paid_amount: perSessionPrice,
         lead_source: schedulingPlan.lead_source,
         lead_professional_id: schedulingPlan.lead_professional_id,
-        commission_percentage: 0,
-        commission_amount: 0,
-        clinic_amount: 0,
+        commission_percentage: perSessionCommission.professionalPercent,
+        commission_amount: perSessionCommission.professionalAmount,
+        clinic_amount: perSessionCommission.clinicAmount,
       })
       if (error) {
         console.error('Batch appointment error:', error)
