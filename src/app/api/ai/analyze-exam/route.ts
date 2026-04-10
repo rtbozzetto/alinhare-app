@@ -124,32 +124,49 @@ Sugestões adicionais (outros exames, encaminhamentos, acompanhamento).
 
 Seja objetivo, técnico e prático nas recomendações.`
 
-    const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      {
+    // Call Gemini with retry for rate limits
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`
+    const geminiBody = JSON.stringify({
+      contents: [
+        {
+          parts: [
+            ...fileParts,
+            { text: prompt },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 4096,
+      },
+    })
+
+    let geminiResponse: Response | null = null
+    for (let attempt = 0; attempt < 3; attempt++) {
+      geminiResponse = await fetch(geminiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                ...fileParts,
-                { text: prompt },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 4096,
-          },
-        }),
-      }
-    )
+        body: geminiBody,
+      })
 
-    if (!geminiResponse.ok) {
-      const errText = await geminiResponse.text()
+      if (geminiResponse.status === 429 && attempt < 2) {
+        // Rate limited — wait and retry
+        const waitSec = (attempt + 1) * 5
+        console.log(`Gemini rate limited, waiting ${waitSec}s before retry ${attempt + 2}/3`)
+        await new Promise(r => setTimeout(r, waitSec * 1000))
+        continue
+      }
+      break
+    }
+
+    if (!geminiResponse || !geminiResponse.ok) {
+      const errText = geminiResponse ? await geminiResponse.text() : 'No response'
       console.error('Gemini API error:', errText)
-      return NextResponse.json({ error: `Erro na API Gemini: ${geminiResponse.status}` }, { status: 502 })
+      const status = geminiResponse?.status ?? 502
+      const msg = status === 429
+        ? 'Limite de requisições do Gemini atingido. Aguarde alguns minutos e tente novamente.'
+        : `Erro na API Gemini: ${status}`
+      return NextResponse.json({ error: msg }, { status: 502 })
     }
 
     const data = await geminiResponse.json()
