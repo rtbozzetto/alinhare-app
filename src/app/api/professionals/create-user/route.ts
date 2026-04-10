@@ -52,25 +52,15 @@ export async function POST(request: Request) {
     await admin.from('professionals').update({ auth_user_id: authData.user.id }).eq('id', professional_id)
     await admin.from('user_roles').insert({ user_id: authData.user.id, role: 'profissional' })
 
-    // 5. Generate recovery link and try to send email
-    const { data: linkData } = await admin.auth.admin.generateLink({
-      type: 'recovery',
-      email,
-      options: { redirectTo: `${siteUrl}/reset-password` },
-    })
-
-    // Also try sending the email via resetPasswordForEmail
+    // 5. Send recovery email so professional can set their password
     await admin.auth.resetPasswordForEmail(email, {
       redirectTo: `${siteUrl}/auth/callback?next=/reset-password?type=recovery`,
     })
-
-    const actionLink = linkData?.properties?.action_link || null
 
     return NextResponse.json({
       success: true,
       user_id: authData.user.id,
       already_existed: false,
-      recovery_link: actionLink,
     })
   } catch (err) {
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })

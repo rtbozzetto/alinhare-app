@@ -25,7 +25,8 @@ export default function LoginPage() {
     const { error } = await signIn(email, password)
     setLoading(false)
     if (error) {
-      toast.error('Erro ao fazer login. Verifique suas credenciais.')
+      console.error('Login error:', error)
+      toast.error(error.message || 'Erro ao fazer login. Verifique suas credenciais.')
     } else {
       router.push('/')
     }
