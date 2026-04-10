@@ -32,24 +32,7 @@ export async function POST(request: Request) {
 
   const expectedView = EXPECTED_VIEWS[photoType]
 
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  inlineData: {
-                    mimeType,
-                    data: base64,
-                  },
-                },
-                {
-                  text: `Você é um assistente de validação de fotos para análise postural em uma clínica de fisioterapia.
+  const promptText = `Você é um assistente de validação de fotos para análise postural em uma clínica de fisioterapia.
 
 A foto enviada deveria ser uma ${expectedView}.
 
@@ -66,23 +49,29 @@ Analise a foto e verifique TODOS os critérios abaixo:
 Responda EXCLUSIVAMENTE com um JSON válido (sem markdown, sem crases), no formato:
 {"valid": true ou false, "reason": "motivo se inválida, ou vazio se válida", "issues": ["lista de problemas encontrados"]}
 
-Se qualquer um dos critérios falhar, a foto é INVÁLIDA. Seja rigoroso.`,
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 500,
-          },
-        }),
-      }
-    )
+Se qualquer um dos critérios falhar, a foto é INVÁLIDA. Seja rigoroso.`
 
-    if (!response.ok) {
-      const errText = await response.text()
-      console.error('Gemini API error:', errText)
-      return NextResponse.json({ error: 'Erro na API de validação' }, { status: 502 })
+  const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash-lite']
+  const requestBody = JSON.stringify({
+    contents: [{ parts: [{ inlineData: { mimeType, data: base64 } }, { text: promptText }] }],
+    generationConfig: { temperature: 0.1, maxOutputTokens: 500 },
+  })
+
+  try {
+    let response: Response | null = null
+    for (const model of models) {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: requestBody }
+      )
+      if (response.ok) break
+      console.error(`Gemini ${model} error (${response.status}):`, await response.text())
+      if (response.status === 429 || response.status === 503) continue
+      break
+    }
+
+    if (!response || !response.ok) {
+      return NextResponse.json({ error: `Erro na API de validação: ${response?.status ?? 'sem resposta'}` }, { status: 502 })
     }
 
     const data = await response.json()

@@ -125,7 +125,7 @@ Sugestões adicionais (outros exames, encaminhamentos, acompanhamento).
 Seja objetivo, técnico e prático nas recomendações.`
 
     // Try multiple Gemini models (fallback on rate limit)
-    const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite']
+    const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash-lite']
     const requestBody = JSON.stringify({
       contents: [
         {
@@ -162,9 +162,9 @@ Seja objetivo, técnico e prático nas recomendações.`
       lastError = await geminiResponse.text()
       console.error(`Gemini ${model} error (${geminiResponse.status}):`, lastError)
 
-      if (geminiResponse.status === 429) {
-        // Rate limited on this model, try next
-        console.log(`Rate limited on ${model}, trying next model...`)
+      if (geminiResponse.status === 429 || geminiResponse.status === 503) {
+        // Rate limited or overloaded, try next model
+        console.log(`${model} returned ${geminiResponse.status}, trying next model...`)
         continue
       }
 

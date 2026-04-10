@@ -144,33 +144,39 @@ Compare os achados atuais com a análise anterior. Destaque:
 
 Seja detalhado e prático nas recomendações.`
 
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+  const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash-lite']
+  const requestBody = JSON.stringify({
+    contents: [
       {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                ...imageParts,
-                { text: prompt },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 4096,
-          },
-        }),
-      }
-    )
+        parts: [
+          ...imageParts,
+          { text: prompt },
+        ],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.3,
+      maxOutputTokens: 4096,
+    },
+  })
 
-    if (!response.ok) {
-      const errText = await response.text()
-      console.error('Gemini API error:', errText)
-      return NextResponse.json({ error: 'Erro na API de análise' }, { status: 502 })
+  try {
+    let response: Response | null = null
+    let usedModel = ''
+
+    for (const model of models) {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: requestBody }
+      )
+      if (response.ok) { usedModel = model; break }
+      console.error(`Gemini ${model} error (${response.status}):`, await response.text())
+      if (response.status === 429 || response.status === 503) continue
+      break
+    }
+
+    if (!response || !response.ok) {
+      return NextResponse.json({ error: `Erro na API Gemini: ${response?.status ?? 'sem resposta'}` }, { status: 502 })
     }
 
     const data = await response.json()
@@ -183,7 +189,7 @@ Seja detalhado e prático nas recomendações.`
     return NextResponse.json({
       analysis: analysisText,
       type: previousAnalysis ? 'compare' : 'single',
-      model: 'gemini-2.5-flash',
+      model: usedModel,
     })
   } catch (error) {
     console.error('Analysis error:', error)
