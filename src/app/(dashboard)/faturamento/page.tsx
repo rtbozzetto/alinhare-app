@@ -248,6 +248,7 @@ function BillingContent() {
               <TableHead className="whitespace-nowrap">Paciente</TableHead>
               <TableHead className="whitespace-nowrap">Profissional</TableHead>
               <TableHead className="whitespace-nowrap">Tipo</TableHead>
+              <TableHead className="whitespace-nowrap">Sessão</TableHead>
               <TableHead className="whitespace-nowrap">Valor</TableHead>
               <TableHead className="whitespace-nowrap">Desconto</TableHead>
               <TableHead className="whitespace-nowrap">Liquido</TableHead>
@@ -272,6 +273,7 @@ function BillingContent() {
                     {plan.plan_name}
                   </span>
                 </TableCell>
+                <TableCell className="text-xs text-muted-foreground">{plan.plan_type === 'avaliacao' ? '—' : `${plan.plan_type === 'treatment' ? 'Tratamento' : 'Manutenção'}`}</TableCell>
                 <TableCell>{formatCurrency(plan.price)}</TableCell>
                 <TableCell>{formatCurrency(plan.discount_amount)}</TableCell>
                 <TableCell>{formatCurrency(plan.final_paid_amount)}</TableCell>
@@ -294,7 +296,14 @@ function BillingContent() {
                 <TableCell className="whitespace-nowrap">{appt.patient?.full_name ?? '-'}</TableCell>
                 <TableCell className="whitespace-nowrap">{appt.professional?.full_name ?? '-'}</TableCell>
                 <TableCell>
-                  {APPOINTMENT_TYPES.find(t => t.value === appt.appointment_type)?.label ?? appt.appointment_type}
+                  {(appt as any)._plan_name
+                    ? (appt as any)._plan_name
+                    : APPOINTMENT_TYPES.find(t => t.value === appt.appointment_type)?.label ?? appt.appointment_type}
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                  {(appt as any)._session_number
+                    ? `${(appt as any)._session_number} de ${(appt as any)._total_sessions}`
+                    : '—'}
                 </TableCell>
                 <TableCell>{formatCurrency(appt.custom_price ?? 0)}</TableCell>
                 <TableCell>{formatCurrency(appt.discount_amount)}</TableCell>

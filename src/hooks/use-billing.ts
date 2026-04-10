@@ -46,7 +46,45 @@ export function useBilling() {
       .gte('appointment_date', startDate)
       .lte('appointment_date', endDate)
       .order('appointment_date')
-    if (data) setAppointments(data as Appointment[])
+    if (data) {
+      // Enrich appointments with plan info (plan_name + session number)
+      const patientIds = [...new Set(data.map((a: any) => a.patient_id))]
+      const { data: plans } = await supabase
+        .from('treatment_plans')
+        .select('id, patient_id, professional_id, plan_name, plan_type, total_sessions')
+        .in('patient_id', patientIds.length > 0 ? patientIds : ['__none__'])
+
+      const typeMap: Record<string, string> = { treatment: 'tratamento', maintenance: 'manutencao', avaliacao: 'avaliacao' }
+
+      // For each patient+professional+type combo, count appointments in order to determine session number
+      const apptsByKey: Record<string, any[]> = {}
+      const sorted = [...data].sort((a: any, b: any) => a.appointment_date.localeCompare(b.appointment_date) || (a.appointment_time ?? '').localeCompare(b.appointment_time ?? ''))
+      for (const appt of sorted) {
+        const key = `${appt.patient_id}_${appt.professional_id}_${appt.appointment_type}`
+        if (!apptsByKey[key]) apptsByKey[key] = []
+        apptsByKey[key].push(appt)
+      }
+
+      const enriched = data.map((appt: any) => {
+        const matchingPlan = plans?.find((p: any) =>
+          p.patient_id === appt.patient_id &&
+          p.professional_id === appt.professional_id &&
+          typeMap[p.plan_type] === appt.appointment_type
+        )
+        if (matchingPlan) {
+          const key = `${appt.patient_id}_${appt.professional_id}_${appt.appointment_type}`
+          const idx = apptsByKey[key]?.findIndex((a: any) => a.id === appt.id) ?? -1
+          return {
+            ...appt,
+            _plan_name: matchingPlan.plan_name,
+            _session_number: idx + 1,
+            _total_sessions: matchingPlan.total_sessions,
+          }
+        }
+        return appt
+      })
+      setAppointments(enriched as Appointment[])
+    }
 
     // Also fetch paid treatment plans created in this month
     const { data: plans } = await supabase
