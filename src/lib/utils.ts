@@ -51,22 +51,17 @@ export function calculateCommission(
   let professionalPercent: number
   let clinicPercent: number
 
-  if (leadSource === 'clinica') {
-    // Lead da clínica: clínica 60%, profissional 40%
-    clinicPercent = 60
-    professionalPercent = 40
+  const isJanaina = professionalName?.toLowerCase().includes('janaina') ||
+                    professionalName?.toLowerCase().includes('janaína')
+
+  if (isJanaina) {
+    // Janaína: 100% repasse, 0% clínica
+    professionalPercent = 100
+    clinicPercent = 0
   } else {
-    // Lead do profissional: clínica 40%, profissional 60%
-    // Exceção: Janaína com lead próprio → clínica 0%, ela 100%
-    const isJanaina = professionalName?.toLowerCase().includes('janaina') ||
-                      professionalName?.toLowerCase().includes('janaína')
-    if (isJanaina) {
-      clinicPercent = 0
-      professionalPercent = 100
-    } else {
-      clinicPercent = 40
-      professionalPercent = 60
-    }
+    // Outros profissionais: 60% repasse, 40% clínica
+    professionalPercent = 60
+    clinicPercent = 40
   }
 
   return {
