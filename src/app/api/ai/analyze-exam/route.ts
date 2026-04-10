@@ -125,7 +125,7 @@ Sugestões adicionais (outros exames, encaminhamentos, acompanhamento).
 Seja objetivo, técnico e prático nas recomendações.`
 
     // Try multiple Gemini models (fallback on rate limit)
-    const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
+    const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite']
     const requestBody = JSON.stringify({
       contents: [
         {
@@ -217,7 +217,7 @@ Seja objetivo, técnico e prático nas recomendações.`
 
     return NextResponse.json({
       analysis: analysisText,
-      model: 'gemini-2.0-flash',
+      model: usedModel,
     })
   } catch (error: any) {
     console.error('Exam analysis error:', error)

@@ -146,7 +146,7 @@ Seja detalhado e prático nas recomendações.`
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -183,7 +183,7 @@ Seja detalhado e prático nas recomendações.`
     return NextResponse.json({
       analysis: analysisText,
       type: previousAnalysis ? 'compare' : 'single',
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
     })
   } catch (error) {
     console.error('Analysis error:', error)
