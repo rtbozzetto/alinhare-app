@@ -528,7 +528,13 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
     let created = 0
     let errors = 0
 
-    for (const item of schedulePreview) {
+    // Get pending sessions for this plan to sync dates
+    const planSessions = sessions
+      .filter(s => s.plan_id === schedulingPlan.id && !s.completed)
+      .sort((a, b) => a.session_number - b.session_number)
+
+    for (let i = 0; i < schedulePreview.length; i++) {
+      const item = schedulePreview[i]
       const { error } = await supabase.from('appointments').insert({
         patient_id: patientId,
         professional_id: schedulingPlan.professional_id,
@@ -553,6 +559,13 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
         errors++
       } else {
         created++
+        // Sync session date with appointment date
+        if (i < planSessions.length) {
+          await supabase
+            .from('treatment_sessions')
+            .update({ session_date: item.date })
+            .eq('id', planSessions[i].id)
+        }
       }
     }
 
@@ -563,6 +576,8 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
     } else {
       toast.success(`${created} agendamento(s) criado(s) com sucesso!`)
     }
+    // Refresh sessions to show updated dates
+    fetchSessions()
     setScheduleDialogOpen(false)
   }
 
