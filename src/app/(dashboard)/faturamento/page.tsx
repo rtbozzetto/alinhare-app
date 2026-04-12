@@ -284,7 +284,9 @@ function BillingContent() {
             {filteredPlans.map(plan => (
               <TableRow key={`plan-${plan.id}`} className="bg-teal-50/30">
                 <TableCell className="whitespace-nowrap">
-                  {new Date(plan.created_at).toLocaleDateString('pt-BR')}
+                  {plan.created_at && !isNaN(new Date(plan.created_at).getTime())
+                    ? new Date(plan.created_at).toLocaleDateString('pt-BR')
+                    : '-'}
                 </TableCell>
                 <TableCell className="whitespace-nowrap">{plan.patient_name}</TableCell>
                 <TableCell className="whitespace-nowrap">{plan.professional_name}</TableCell>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 export async function POST(request: Request) {
+  try {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
@@ -160,39 +161,38 @@ Seja detalhado e prático nas recomendações.`
     },
   })
 
-  try {
-    let response: Response | null = null
-    let usedModel = ''
+  let response: Response | null = null
+  let usedModel = ''
 
-    for (const model of models) {
-      response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: requestBody }
-      )
-      if (response.ok) { usedModel = model; break }
-      console.error(`Gemini ${model} error (${response.status}):`, await response.text())
-      if (response.status === 429 || response.status === 503) continue
-      break
-    }
+  for (const model of models) {
+    response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: requestBody }
+    )
+    if (response.ok) { usedModel = model; break }
+    console.error(`Gemini ${model} error (${response.status}):`, await response.text())
+    if (response.status === 429 || response.status === 503) continue
+    break
+  }
 
-    if (!response || !response.ok) {
-      return NextResponse.json({ error: `Erro na API Gemini: ${response?.status ?? 'sem resposta'}` }, { status: 502 })
-    }
+  if (!response || !response.ok) {
+    return NextResponse.json({ error: `Erro na API Gemini: ${response?.status ?? 'sem resposta'}` }, { status: 502 })
+  }
 
-    const data = await response.json()
-    const analysisText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  const data = await response.json()
+  const analysisText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
 
-    if (!analysisText) {
-      return NextResponse.json({ error: 'A IA não gerou análise. Tente novamente.' }, { status: 502 })
-    }
+  if (!analysisText) {
+    return NextResponse.json({ error: 'A IA não gerou análise. Tente novamente.' }, { status: 502 })
+  }
 
-    return NextResponse.json({
-      analysis: analysisText,
-      type: previousAnalysis ? 'compare' : 'single',
-      model: usedModel,
-    })
-  } catch (error) {
-    console.error('Analysis error:', error)
-    return NextResponse.json({ error: 'Erro interno na análise' }, { status: 500 })
+  return NextResponse.json({
+    analysis: analysisText,
+    type: previousAnalysis ? 'compare' : 'single',
+    model: usedModel,
+  })
+  } catch (error: any) {
+    console.error('Posture analysis error:', error)
+    return NextResponse.json({ error: `Erro interno na análise: ${error?.message ?? 'desconhecido'}` }, { status: 500 })
   }
 }

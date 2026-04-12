@@ -107,7 +107,7 @@ export function BatchScheduleDialog({
         .eq('plan_id', plan.id)
         .eq('completed', false)
 
-      setPlanPending(count || plan.total_sessions)
+      setPlanPending(count ?? plan.total_sessions)
     } else {
       setActivePlan(null)
       setPlanPending(0)

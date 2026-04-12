@@ -29,14 +29,20 @@ export async function POST(request: Request) {
     }
 
     if (action === 'ban') {
-      await admin.auth.admin.updateUserById(prof.auth_user_id, { ban_duration: '876600h' }) // 100 years
-      await admin.from('professionals').update({ active: false }).eq('id', professional_id)
+      const { error: authErr } = await admin.auth.admin.updateUserById(prof.auth_user_id, { ban_duration: '876600h' })
+      if (authErr) return NextResponse.json({ error: `Erro ao banir usuário: ${authErr.message}` }, { status: 400 })
+      const { error: dbErr } = await admin.from('professionals').update({ active: false }).eq('id', professional_id)
+      if (dbErr) return NextResponse.json({ error: `Erro ao desativar profissional: ${dbErr.message}` }, { status: 400 })
     } else if (action === 'unban') {
-      await admin.auth.admin.updateUserById(prof.auth_user_id, { ban_duration: 'none' })
-      await admin.from('professionals').update({ active: true }).eq('id', professional_id)
+      const { error: authErr } = await admin.auth.admin.updateUserById(prof.auth_user_id, { ban_duration: 'none' })
+      if (authErr) return NextResponse.json({ error: `Erro ao desbanir usuário: ${authErr.message}` }, { status: 400 })
+      const { error: dbErr } = await admin.from('professionals').update({ active: true }).eq('id', professional_id)
+      if (dbErr) return NextResponse.json({ error: `Erro ao ativar profissional: ${dbErr.message}` }, { status: 400 })
     } else if (action === 'delete') {
-      await admin.auth.admin.deleteUser(prof.auth_user_id)
-      await admin.from('professionals').update({ auth_user_id: null, active: false }).eq('id', professional_id)
+      const { error: authErr } = await admin.auth.admin.deleteUser(prof.auth_user_id)
+      if (authErr) return NextResponse.json({ error: `Erro ao deletar usuário: ${authErr.message}` }, { status: 400 })
+      const { error: dbErr } = await admin.from('professionals').update({ auth_user_id: null, active: false }).eq('id', professional_id)
+      if (dbErr) return NextResponse.json({ error: `Erro ao atualizar profissional: ${dbErr.message}` }, { status: 400 })
     } else {
       return NextResponse.json({ error: 'Ação inválida' }, { status: 400 })
     }

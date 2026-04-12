@@ -82,10 +82,14 @@ function WhatsAppContent() {
     window.open(getWhatsAppUrl(phone, message), '_blank')
   }
 
-  function handleCopyMessage(appt: typeof appointments[0]) {
+  async function handleCopyMessage(appt: typeof appointments[0]) {
     const message = getMessage(appt.id, appt)
-    navigator.clipboard.writeText(message)
-    toast.success('Mensagem copiada!')
+    try {
+      await navigator.clipboard.writeText(message)
+      toast.success('Mensagem copiada!')
+    } catch {
+      toast.error('Erro ao copiar mensagem.')
+    }
   }
 
   function buildProfessionalSummary(profId: string) {
@@ -121,10 +125,14 @@ function WhatsAppContent() {
     window.open(getWhatsAppUrl(phone, summary), '_blank')
   }
 
-  function handleCopyProfSummary(profId: string) {
+  async function handleCopyProfSummary(profId: string) {
     const summary = buildProfessionalSummary(profId)
-    navigator.clipboard.writeText(summary)
-    toast.success('Resumo copiado!')
+    try {
+      await navigator.clipboard.writeText(summary)
+      toast.success('Resumo copiado!')
+    } catch {
+      toast.error('Erro ao copiar resumo.')
+    }
   }
 
   return (

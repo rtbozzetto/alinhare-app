@@ -176,7 +176,7 @@ export function SessionsTab({ patientId, patientName, onRequestNewPlan }: Sessio
       .limit(1)
       .maybeSingle()
     setCurrentAnalysis(analysis)
-  }, [supabase])
+  }, [supabase, patientId])
 
   function openDetail(session: TreatmentSession) {
     setSelectedSession(session)
@@ -244,7 +244,12 @@ export function SessionsTab({ patientId, patientName, onRequestNewPlan }: Sessio
     setSavingDiscomforts(true)
 
     // Delete all existing records for this session
-    await supabase.from('discomfort_records').delete().eq('session_id', selectedSession.id)
+    const { error: deleteErr } = await supabase.from('discomfort_records').delete().eq('session_id', selectedSession.id)
+    if (deleteErr) {
+      toast.error('Erro ao limpar desconfortos antigos.')
+      setSavingDiscomforts(false)
+      return
+    }
 
     // Insert current selections
     const regions = Object.entries(selectedRegions)
@@ -293,7 +298,9 @@ export function SessionsTab({ patientId, patientName, onRequestNewPlan }: Sessio
 
   async function handleDeleteClinicalNote(id: string) {
     const { error } = await supabase.from('clinical_notes').delete().eq('id', id)
-    if (!error) {
+    if (error) {
+      toast.error('Erro ao deletar nota.')
+    } else {
       setClinicalNotes(prev => prev.filter(n => n.id !== id))
     }
   }
@@ -1054,9 +1061,11 @@ export function SessionsTab({ patientId, patientName, onRequestNewPlan }: Sessio
                 <div key={note.id} className="flex items-start justify-between rounded-lg border p-2">
                   <div className="text-sm">
                     <p>{note.note_text}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(note.created_at).toLocaleString('pt-BR')}
-                    </p>
+                    {note.created_at && !isNaN(new Date(note.created_at).getTime()) && (
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(note.created_at).toLocaleString('pt-BR')}
+                      </p>
+                    )}
                   </div>
                   <Button
                     variant="ghost"

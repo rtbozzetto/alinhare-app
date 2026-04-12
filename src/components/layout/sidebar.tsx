@@ -47,7 +47,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
           const isActive =
             item.href === '/'
               ? pathname === '/' || pathname.startsWith('/pacientes')
-              : pathname.startsWith(item.href)
+              : pathname === item.href || pathname.startsWith(item.href + '/')
 
           return (
             <Link key={item.href} href={item.href} onClick={onNavigate}>

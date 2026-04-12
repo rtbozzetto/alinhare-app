@@ -63,7 +63,7 @@ export function ExamsTab({ patientId }: ExamsTabProps) {
   async function handleUpload(file: File) {
     setUploading(true)
 
-    const ext = file.name.split('.').pop()
+    const ext = file.name.split('.').pop() || 'bin'
     const filePath = `${patientId}/${Date.now()}.${ext}`
 
     const { error: uploadError } = await supabase.storage
@@ -95,15 +95,24 @@ export function ExamsTab({ patientId }: ExamsTabProps) {
   }
 
   async function handleDelete(exam: PatientExam) {
-    // Delete from storage
-    const pathParts = exam.file_url.split('exam-files/')
-    const storagePath = pathParts.length > 1 ? pathParts[1] : exam.file_url
-    await supabase.storage.from('exam-files').remove([storagePath])
+    try {
+      // Delete from storage
+      const pathParts = exam.file_url.split('exam-files/')
+      const storagePath = pathParts.length > 1 ? pathParts[1] : exam.file_url
+      await supabase.storage.from('exam-files').remove([storagePath])
 
-    // Delete record
-    await supabase.from('patient_exams').delete().eq('id', exam.id)
-    setExams(prev => prev.filter(e => e.id !== exam.id))
-    toast.success('Exame excluido.')
+      // Delete record
+      const { error } = await supabase.from('patient_exams').delete().eq('id', exam.id)
+      if (error) {
+        toast.error('Erro ao excluir exame.')
+        return
+      }
+      setExams(prev => prev.filter(e => e.id !== exam.id))
+      toast.success('Exame excluído.')
+    } catch (err) {
+      console.error('Delete exam error:', err)
+      toast.error('Erro ao excluir exame.')
+    }
   }
 
   async function handleAnalyze(exam: PatientExam) {
@@ -229,9 +238,11 @@ export function ExamsTab({ patientId }: ExamsTabProps) {
                       <p className="text-sm text-muted-foreground truncate">{exam.exam_description}</p>
                     )}
                     <div className="flex items-center gap-2 mt-1">
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(exam.created_at).toLocaleDateString('pt-BR')}
-                      </p>
+                      {exam.created_at && !isNaN(new Date(exam.created_at).getTime()) && (
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(exam.created_at).toLocaleDateString('pt-BR')}
+                        </p>
+                      )}
                       {exam.ai_analysis && (
                         <Badge variant="default" className="bg-purple-600 text-[10px] px-1.5 py-0">
                           <Brain className="mr-1 h-2.5 w-2.5" />
@@ -312,7 +323,7 @@ export function ExamsTab({ patientId }: ExamsTabProps) {
             <div className="rounded-lg bg-gray-50 p-4 text-sm whitespace-pre-wrap">
               {selectedExam?.ai_analysis ?? 'Sem análise disponível.'}
             </div>
-            {selectedExam?.analyzed_at && (
+            {selectedExam?.analyzed_at && !isNaN(new Date(selectedExam.analyzed_at).getTime()) && (
               <p className="text-xs text-muted-foreground">
                 Analisado em: {new Date(selectedExam.analyzed_at).toLocaleString('pt-BR')}
               </p>
