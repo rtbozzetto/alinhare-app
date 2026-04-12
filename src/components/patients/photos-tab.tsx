@@ -133,7 +133,7 @@ export function PhotosTab({ patientId }: PhotosTabProps) {
                   Sessão {group.session.session_number}
                 </CardTitle>
                 <Badge variant="outline">{group.planName}</Badge>
-                {group.session.session_date && (
+                {group.session.session_date && !isNaN(new Date(group.session.session_date + 'T12:00:00').getTime()) && (
                   <span className="text-sm text-muted-foreground">
                     {new Date(group.session.session_date + 'T12:00:00').toLocaleDateString('pt-BR')}
                   </span>
