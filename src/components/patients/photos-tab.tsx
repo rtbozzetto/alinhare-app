@@ -7,7 +7,8 @@ import { type PatientPhoto, type PostureAnalysis, type TreatmentSession } from '
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { PHOTO_TYPES } from '@/lib/constants'
-import { ImageIcon, Brain } from 'lucide-react'
+import { ImageIcon, Brain, ChevronDown } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface PhotosTabProps {
   patientId: string
@@ -26,6 +27,7 @@ export function PhotosTab({ patientId }: PhotosTabProps) {
 
   const [groups, setGroups] = useState<SessionPhotoGroup[]>([])
   const [loadingPhotos, setLoadingPhotos] = useState(false)
+  const [expandedAnalyses, setExpandedAnalyses] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetchPlans()
@@ -174,20 +176,40 @@ export function PhotosTab({ patientId }: PhotosTabProps) {
 
               {/* AI Analysis */}
               {group.analysis && (
-                <div className="rounded-lg border border-purple-200 bg-purple-50 p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Brain className="h-4 w-4 text-purple-700" />
+                <div className="rounded-lg border border-purple-200 bg-purple-50">
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 p-4 text-left"
+                    onClick={() => setExpandedAnalyses(prev => {
+                      const next = new Set(prev)
+                      if (next.has(group.session.id)) {
+                        next.delete(group.session.id)
+                      } else {
+                        next.add(group.session.id)
+                      }
+                      return next
+                    })}
+                  >
+                    <Brain className="h-4 w-4 text-purple-700 shrink-0" />
                     <h4 className="font-medium text-purple-900">Análise Postural IA</h4>
                     <Badge variant="outline" className="text-[10px] border-purple-300 text-purple-700">
                       {group.analysis.analysis_type === 'compare' ? 'Comparativa' : 'Individual'}
                     </Badge>
-                    <span className="ml-auto text-xs text-purple-600">
+                    <span className="ml-auto text-xs text-purple-600 whitespace-nowrap">
                       {new Date(group.analysis.created_at).toLocaleString('pt-BR')}
                     </span>
-                  </div>
-                  <div className="prose prose-sm max-w-none text-purple-950 whitespace-pre-wrap text-sm">
-                    {group.analysis.analysis_text}
-                  </div>
+                    <ChevronDown className={cn(
+                      'h-4 w-4 text-purple-600 shrink-0 transition-transform duration-200',
+                      expandedAnalyses.has(group.session.id) && 'rotate-180'
+                    )} />
+                  </button>
+                  {expandedAnalyses.has(group.session.id) && (
+                    <div className="px-4 pb-4">
+                      <div className="prose prose-sm max-w-none text-purple-950 whitespace-pre-wrap text-sm">
+                        {group.analysis.analysis_text}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
