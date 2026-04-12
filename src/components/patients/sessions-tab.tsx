@@ -337,6 +337,7 @@ export function SessionsTab({ patientId, patientName, onRequestNewPlan }: Sessio
       }
 
       setValidatingType(null)
+      setValidationError(null)
 
       // Step 2: Upload to storage
       setUploadingType(photoType)
@@ -349,7 +350,8 @@ export function SessionsTab({ patientId, patientName, onRequestNewPlan }: Sessio
         .upload(filePath, file, { upsert: true })
 
       if (uploadError) {
-        toast.error('Erro ao fazer upload da foto.')
+        console.error('Photo upload error:', uploadError)
+        toast.error(`Erro no upload: ${uploadError.message || 'tente novamente'}`)
         setUploadingType(null)
         return
       }
@@ -413,20 +415,29 @@ export function SessionsTab({ patientId, patientName, onRequestNewPlan }: Sessio
   }
 
   async function handleDeletePhoto(photo: PatientPhoto) {
-    // Delete from storage (use the original path, not signed URL)
-    const { data: photoRecord } = await supabase
-      .from('patient_photos')
-      .select('photo_url')
-      .eq('id', photo.id)
-      .single()
+    try {
+      // Delete from storage (use the original path, not signed URL)
+      const { data: photoRecord } = await supabase
+        .from('patient_photos')
+        .select('photo_url')
+        .eq('id', photo.id)
+        .single()
 
-    if (photoRecord) {
-      await supabase.storage.from('patient-photos').remove([photoRecord.photo_url])
+      if (photoRecord) {
+        await supabase.storage.from('patient-photos').remove([photoRecord.photo_url])
+      }
+
+      const { error } = await supabase.from('patient_photos').delete().eq('id', photo.id)
+      if (error) {
+        toast.error('Erro ao excluir foto do banco.')
+        return
+      }
+      setSessionPhotos(prev => prev.filter(p => p.id !== photo.id))
+      toast.success('Foto excluída.')
+    } catch (err) {
+      console.error('Delete photo error:', err)
+      toast.error('Erro ao excluir foto.')
     }
-
-    await supabase.from('patient_photos').delete().eq('id', photo.id)
-    setSessionPhotos(prev => prev.filter(p => p.id !== photo.id))
-    toast.success('Foto excluída.')
   }
 
   function getPhotoForType(photoType: string): PatientPhoto | undefined {
@@ -435,10 +446,19 @@ export function SessionsTab({ patientId, patientName, onRequestNewPlan }: Sessio
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>, photoType: string) {
     const file = e.target.files?.[0]
-    if (file) {
-      validateAndUploadPhoto(file, photoType)
+    if (!file) { e.target.value = ''; return }
+    if (!file.type.startsWith('image/')) {
+      toast.error('Arquivo deve ser uma imagem (JPG, PNG, etc.)')
+      e.target.value = ''
+      return
     }
-    // Reset input
+    const MAX_SIZE = 10 * 1024 * 1024 // 10MB
+    if (file.size > MAX_SIZE) {
+      toast.error('Imagem muito grande. Máximo 10MB.')
+      e.target.value = ''
+      return
+    }
+    validateAndUploadPhoto(file, photoType)
     e.target.value = ''
   }
 
@@ -458,8 +478,8 @@ export function SessionsTab({ patientId, patientName, onRequestNewPlan }: Sessio
     try {
       // Get signed URLs for all session photos
       const photoUrls: Record<string, string> = {}
+      let failedPhotos: string[] = []
       for (const photo of sessionPhotos) {
-        // Get original path from DB
         const { data: record } = await supabase
           .from('patient_photos')
           .select('photo_url, photo_type')
@@ -468,11 +488,21 @@ export function SessionsTab({ patientId, patientName, onRequestNewPlan }: Sessio
         if (record) {
           const { data: signed } = await supabase.storage
             .from('patient-photos')
-            .createSignedUrl(record.photo_url, 600)
+            .createSignedUrl(record.photo_url, 3600)
           if (signed?.signedUrl) {
             photoUrls[record.photo_type] = signed.signedUrl
+          } else {
+            failedPhotos.push(record.photo_type)
           }
         }
+      }
+      if (failedPhotos.length > 0) {
+        toast.error(`Não foi possível acessar: ${failedPhotos.join(', ')}`)
+      }
+      if (Object.keys(photoUrls).length === 0) {
+        toast.error('Nenhuma foto disponível para análise.')
+        setAnalyzing(false)
+        return
       }
 
       // Get patient data
@@ -525,7 +555,7 @@ export function SessionsTab({ patientId, patientName, onRequestNewPlan }: Sessio
         .insert({
           patient_id: patientId,
           session_a_id: selectedSession.id,
-          session_b_id: prevAnalysis ? null : null, // Only session_a for single analysis
+          session_b_id: null,
           analysis_text: result.analysis,
           analysis_type: result.type || 'single',
         })

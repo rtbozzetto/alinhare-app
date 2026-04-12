@@ -71,7 +71,7 @@ export async function POST(request: Request) {
 - Nome: ${patientData.full_name || 'Não informado'}
 - Idade: ${age ?? 'Não informada'}
 - Sexo: ${patientData.sex || 'Não informado'}
-- Altura: ${patientData.height_cm ? `${patientData.height_cm}m` : 'Não informada'}
+- Altura: ${patientData.height_cm ? `${(patientData.height_cm / 100).toFixed(2)}m` : 'Não informada'}
 - Queixa principal: ${patientData.main_complaint || 'Não informada'}
 - Prática esportiva: ${patientData.sport || 'Não informada'}
 - Histórico cirúrgico: ${patientData.surgery_history || 'Nenhum'}
