@@ -36,20 +36,25 @@ export async function POST(request: Request) {
 
 A foto enviada deveria ser uma ${expectedView}.
 
-Analise a foto e verifique TODOS os critérios abaixo:
+Analise a foto e verifique os critérios abaixo:
 
-1. É uma foto de uma pessoa em posição ortostática (em pé, parada)?
-2. O corpo inteiro está visível (da cabeça aos pés, sem cortes)?
-3. A cabeça está completamente visível (não cortada)?
-4. Os pés estão completamente visíveis (não cortados)?
-5. O ângulo corresponde ao esperado (${photoType === 'frente' ? 'frontal' : photoType === 'costas' ? 'posterior/de costas' : photoType === 'lateral_direita' ? 'lateral direito' : 'lateral esquerdo'})?
-6. A iluminação é adequada para análise (não muito escura, não muito clara)?
-7. A imagem está nítida o suficiente?
+1. É uma foto de uma pessoa real em posição de pé (ortostática ou próxima)?
+2. A maior parte do corpo está visível (pelo menos do topo da cabeça até os tornozelos)?
+3. A cabeça está visível (pelo menos parcialmente)?
+4. O ângulo é aproximadamente correto para o tipo esperado (${photoType === 'frente' ? 'frontal' : photoType === 'costas' ? 'posterior/de costas' : photoType === 'lateral_direita' ? 'lateral direito' : 'lateral esquerdo'})?
+5. A iluminação permite ver a postura do paciente?
+6. A imagem está razoavelmente nítida?
+
+IMPORTANTE: Seja TOLERANTE. Pequenos cortes nos pés ou topo da cabeça são aceitáveis. Fotos de celular com qualidade normal são aceitáveis. O objetivo é garantir que a foto é útil para análise postural, não que seja perfeita.
+
+A foto deve ser INVÁLIDA apenas se:
+- Não é uma foto de uma pessoa de pé
+- O ângulo está completamente errado (ex: foto de frente quando deveria ser de costas)
+- A imagem está muito escura, borrada ou cortada de forma que impossibilita a análise
+- Mostra menos da metade do corpo
 
 Responda EXCLUSIVAMENTE com um JSON válido (sem markdown, sem crases), no formato:
-{"valid": true ou false, "reason": "motivo se inválida, ou vazio se válida", "issues": ["lista de problemas encontrados"]}
-
-Se qualquer um dos critérios falhar, a foto é INVÁLIDA. Seja rigoroso.`
+{"valid": true ou false, "reason": "motivo se inválida, ou vazio se válida", "issues": ["lista de problemas encontrados"]}`
 
   const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash-lite']
   const requestBody = JSON.stringify({
