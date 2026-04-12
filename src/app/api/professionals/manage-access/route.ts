@@ -42,7 +42,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true })
-  } catch (err) {
-    return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
+  } catch (err: any) {
+    console.error('manage-access error:', err)
+    return NextResponse.json({ error: `Erro interno: ${err?.message ?? 'desconhecido'}` }, { status: 500 })
   }
 }

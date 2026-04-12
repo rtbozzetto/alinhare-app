@@ -118,7 +118,7 @@ export default function AgendaPage() {
     const dateStr = format(date, 'yyyy-MM-dd')
     return appointments.filter(a => {
       const matchDate = a.appointment_date === dateStr
-      const matchTime = a.appointment_time?.startsWith(time.slice(0, 2))
+      const matchTime = a.appointment_time?.slice(0, 5) === time
       const matchProf = !effectiveProfId || a.professional_id === effectiveProfId
       return matchDate && matchTime && matchProf
     })

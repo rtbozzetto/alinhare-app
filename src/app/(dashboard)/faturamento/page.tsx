@@ -113,14 +113,24 @@ function BillingContent() {
   }, [filteredAppointments, filteredPlans, filteredSessions])
 
   async function handleCloseMonth() {
+    const totalRecords = filteredAppointments.length + filteredPlans.length + filteredSessions.length
+    if (totalRecords === 0) {
+      toast.error('Não há registros para fechar neste período.')
+      return
+    }
+    const snapshot = [
+      ...filteredPlans.map(p => ({ ...p, _source: 'plan' })),
+      ...filteredSessions.map(s => ({ ...s, _source: 'session' })),
+      ...filteredAppointments,
+    ]
     const { error } = await closeMonth(refMonth, {
       total_bruto: totals.bruto,
       total_desconto: totals.desconto,
       total_liquido: totals.liquido,
       total_repasse: totals.repasse,
       total_clinica: totals.clinica,
-      total_appointments: filteredAppointments.length + filteredPlans.length + filteredSessions.length,
-      snapshot: [...filteredPlans.map(p => ({ ...p, _source: 'plan' })), ...filteredSessions.map(s => ({ ...s, _source: 'session' })), ...filteredAppointments],
+      total_appointments: totalRecords,
+      snapshot,
     })
     if (error) {
       toast.error('Erro ao fechar mes.')
@@ -335,7 +345,7 @@ function BillingContent() {
                   {new Date(appt.appointment_date + 'T12:00:00').toLocaleDateString('pt-BR')}
                 </TableCell>
                 <TableCell className="whitespace-nowrap">{appt.patient?.full_name ?? '-'}</TableCell>
-                <TableCell className="whitespace-nowrap">{appt.professional?.full_name ?? '-'}</TableCell>
+                <TableCell className="whitespace-nowrap">{appt.professional?.full_name || '-'}</TableCell>
                 <TableCell>
                   {(appt as any)._plan_name
                     ? (appt as any)._plan_name

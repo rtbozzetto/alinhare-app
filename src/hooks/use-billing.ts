@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { type MonthlyClosing, type Appointment, type TreatmentPlan } from '@/types/database'
 
@@ -45,7 +45,7 @@ export function useBilling() {
   const [paidPlans, setPaidPlans] = useState<BillingPlanRow[]>([])
   const [completedSessions, setCompletedSessions] = useState<BillingSessionRow[]>([])
   const [loading, setLoading] = useState(false)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   const fetchClosings = useCallback(async () => {
     setLoading(true)
@@ -160,12 +160,12 @@ export function useBilling() {
 
       setCompletedSessions(sessionsWithoutAppt.map((s: any) => {
         const plan = s.plan
-        const totalSessions = plan.total_sessions || 1
+        const totalSessions = plan.total_sessions > 0 ? plan.total_sessions : 1
         const perSessionPrice = plan.price / totalSessions
-        const perSessionDiscount = plan.discount_amount / totalSessions
-        const perSessionFinal = plan.final_paid_amount / totalSessions
-        const perSessionCommission = plan.commission_amount / totalSessions
-        const perSessionClinic = plan.clinic_amount / totalSessions
+        const perSessionDiscount = (plan.discount_amount ?? 0) / totalSessions
+        const perSessionFinal = (plan.final_paid_amount ?? 0) / totalSessions
+        const perSessionCommission = (plan.commission_amount ?? 0) / totalSessions
+        const perSessionClinic = (plan.clinic_amount ?? 0) / totalSessions
 
         return {
           id: s.id,

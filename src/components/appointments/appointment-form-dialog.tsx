@@ -100,7 +100,7 @@ export function AppointmentFormDialog({
     discount_amount: 0,
     discount_type: 'value' as Appointment['discount_type'],
     lead_source: 'clinica' as Appointment['lead_source'],
-    lead_professional_id: '' as string | null,
+    lead_professional_id: null as string | null,
   })
 
   useEffect(() => {
@@ -163,7 +163,8 @@ export function AppointmentFormDialog({
 
     // Determine protocol from selected professional
     const prof = activeProfessionals.find(p => p.id === form.professional_id)
-    const protocol: ProtocolKey = prof?.full_name?.toLowerCase().includes('janain') ? 'janaina' : 'quiropraxistas'
+    const nameLC = prof?.full_name?.toLowerCase() || ''
+    const protocol: ProtocolKey = (nameLC.includes('janaina') || nameLC.includes('janaína') || nameLC.includes('janain')) ? 'janaina' : 'quiropraxistas'
 
     if (type === 'avaliacao') {
       const evalPrice = getEvaluationPrice(protocol)
@@ -422,28 +423,34 @@ export function AppointmentFormDialog({
       } else {
         // Sync session date with appointment date
         if (form.appointment_date) {
-          if (defaultSessionId) {
-            // Update the specific session that was selected
-            await supabase
-              .from('treatment_sessions')
-              .update({ session_date: form.appointment_date })
-              .eq('id', defaultSessionId)
-          } else if (activePlan) {
-            // Fallback: update next pending session
-            const { data: pendingSessions } = await supabase
-              .from('treatment_sessions')
-              .select('id')
-              .eq('plan_id', activePlan.id)
-              .eq('completed', false)
-              .is('session_date', null)
-              .order('session_number')
-              .limit(1)
-            if (pendingSessions && pendingSessions.length > 0) {
-              await supabase
+          try {
+            if (defaultSessionId) {
+              // Update the specific session that was selected
+              const { error: syncErr } = await supabase
                 .from('treatment_sessions')
                 .update({ session_date: form.appointment_date })
-                .eq('id', pendingSessions[0].id)
+                .eq('id', defaultSessionId)
+              if (syncErr) console.error('Session date sync error:', syncErr)
+            } else if (activePlan) {
+              // Fallback: update next pending session
+              const { data: pendingSessions } = await supabase
+                .from('treatment_sessions')
+                .select('id')
+                .eq('plan_id', activePlan.id)
+                .eq('completed', false)
+                .is('session_date', null)
+                .order('session_number')
+                .limit(1)
+              if (pendingSessions && pendingSessions.length > 0) {
+                const { error: syncErr } = await supabase
+                  .from('treatment_sessions')
+                  .update({ session_date: form.appointment_date })
+                  .eq('id', pendingSessions[0].id)
+                if (syncErr) console.error('Session date sync error:', syncErr)
+              }
             }
+          } catch (syncError) {
+            console.error('Session date sync failed:', syncError)
           }
         }
         toast.success('Agendamento criado!')

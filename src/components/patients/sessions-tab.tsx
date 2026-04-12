@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/dialog'
 import { BODY_REGIONS, PHOTO_TYPES } from '@/lib/constants'
 import { toast } from 'sonner'
-import { Check, Eye, Plus, Trash2, Camera, Brain, Loader2, AlertTriangle, X, Upload, PartyPopper, CalendarPlus } from 'lucide-react'
+import { Check, Eye, Plus, Trash2, Camera, Brain, Loader2, AlertTriangle, X, Upload, PartyPopper, CalendarPlus, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AppointmentFormDialog } from '@/components/appointments/appointment-form-dialog'
 
@@ -70,6 +70,7 @@ export function SessionsTab({ patientId, patientName, onRequestNewPlan }: Sessio
 
   // AI Analysis states
   const [analyzing, setAnalyzing] = useState(false)
+  const [analysisExpanded, setAnalysisExpanded] = useState(false)
   const [currentAnalysis, setCurrentAnalysis] = useState<PostureAnalysis | null>(null)
 
   useEffect(() => {
@@ -567,6 +568,7 @@ export function SessionsTab({ patientId, patientName, onRequestNewPlan }: Sessio
         toast.error('Análise gerada mas erro ao salvar.')
       } else {
         setCurrentAnalysis(savedAnalysis)
+        setAnalysisExpanded(true)
         toast.success('Análise postural concluída!')
       }
     } catch (err) {
@@ -905,20 +907,32 @@ export function SessionsTab({ patientId, patientName, onRequestNewPlan }: Sessio
 
               {/* AI Analysis result */}
               {currentAnalysis && (
-                <div className="rounded-lg border border-purple-200 bg-purple-50 p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Brain className="h-4 w-4 text-purple-700" />
+                <div className="rounded-lg border border-purple-200 bg-purple-50">
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 p-4 text-left"
+                    onClick={() => setAnalysisExpanded(prev => !prev)}
+                  >
+                    <Brain className="h-4 w-4 text-purple-700 shrink-0" />
                     <h4 className="font-medium text-purple-900">Análise Postural IA</h4>
                     <Badge variant="outline" className="text-[10px] border-purple-300 text-purple-700">
                       {currentAnalysis.analysis_type === 'compare' ? 'Comparativa' : 'Individual'}
                     </Badge>
-                    <span className="ml-auto text-xs text-purple-600">
+                    <span className="ml-auto text-xs text-purple-600 whitespace-nowrap">
                       {new Date(currentAnalysis.created_at).toLocaleString('pt-BR')}
                     </span>
-                  </div>
-                  <div className="prose prose-sm max-w-none text-purple-950 whitespace-pre-wrap">
-                    {currentAnalysis.analysis_text}
-                  </div>
+                    <ChevronDown className={cn(
+                      'h-4 w-4 text-purple-600 shrink-0 transition-transform duration-200',
+                      analysisExpanded && 'rotate-180'
+                    )} />
+                  </button>
+                  {analysisExpanded && (
+                    <div className="px-4 pb-4">
+                      <div className="prose prose-sm max-w-none text-purple-950 whitespace-pre-wrap">
+                        {currentAnalysis.analysis_text}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
