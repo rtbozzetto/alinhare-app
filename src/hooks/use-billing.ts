@@ -59,7 +59,8 @@ export function useBilling() {
 
   const fetchAppointmentsByMonth = useCallback(async (year: number, month: number) => {
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`
-    const endDate = new Date(year, month, 0).toISOString().split('T')[0] // last day
+    const lastDay = new Date(year, month, 0).getDate()
+    const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
     const { data } = await supabase
       .from('appointments')
       .select('*, patient:patients(full_name), professional:professionals!professional_id(id, full_name)')
