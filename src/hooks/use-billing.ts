@@ -151,29 +151,27 @@ export function useBilling() {
                (updatedDate && updatedDate >= startDate && updatedDate <= endDate)
       })
 
-      // Build set of appointment keys to detect sessions already covered by appointment rows
-      const appointmentKeys = new Set(
-        data.map((a: any) => `${a.patient_id}_${a.professional_id}_${a.appointment_date}`)
+      // All completed sessions in month appear in the sessions section
+      const allCompletedInMonth = sessionsInMonth.filter((s: any) => s.plan)
+
+      // Build set of completed session keys to remove matching appointments (avoid duplication)
+      const completedSessionKeys = new Set(
+        allCompletedInMonth
+          .map((s: any) => {
+            const d = s.session_date?.split('T')[0] ?? null
+            return d ? `${s.patient_id}_${s.professional_id}_${d}` : null
+          })
+          .filter(Boolean)
+      )
+      // Remove appointments that are covered by a completed session
+      setAppointments((prev: Appointment[]) =>
+        prev.filter((a: any) => {
+          const key = `${a.patient_id}_${a.professional_id}_${a.appointment_date}`
+          return !completedSessionKeys.has(key)
+        })
       )
 
-      // Only show sessions that DON'T have a matching appointment
-      const sessionsWithoutAppt = sessionsInMonth.filter((s: any) => {
-        if (!s.plan) return false
-        const sessionDate = s.session_date?.split('T')[0] ?? null
-        const key = sessionDate ? `${s.patient_id}_${s.professional_id}_${sessionDate}` : null
-        const coveredByAppointment = key ? appointmentKeys.has(key) : false
-        return !coveredByAppointment
-      })
-
-      // DEBUG: temporary log to find why session without appointment is missing
-      console.log('[billing] sessionsData total:', sessionsData?.length)
-      console.log('[billing] sessionsInMonth:', sessionsInMonth.length, sessionsInMonth.map((s: any) => ({
-        id: s.id, session_date: s.session_date, updated_at: s.updated_at?.split('T')[0], completed: s.completed, plan_id: s.plan_id, hasPlan: !!s.plan
-      })))
-      console.log('[billing] appointmentKeys:', [...appointmentKeys])
-      console.log('[billing] sessionsWithoutAppt:', sessionsWithoutAppt.length)
-
-      setCompletedSessions(sessionsWithoutAppt.map((s: any) => {
+      setCompletedSessions(allCompletedInMonth.map((s: any) => {
         const plan = s.plan
         const totalSessions = plan.total_sessions > 0 ? plan.total_sessions : 1
         const hasValue = plan.payment_status === 'pago'
