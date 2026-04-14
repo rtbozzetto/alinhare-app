@@ -166,8 +166,8 @@ export function useBilling() {
       setCompletedSessions(completedWithFlag.map((s: any) => {
         const plan = s.plan
         const totalSessions = plan.total_sessions > 0 ? plan.total_sessions : 1
-        // Sessions covered by appointment show with zero values to avoid double-counting
-        const hasValue = !s._coveredByAppointment
+        // Zero values if: pago_pacote (plan row covers it) or has matching appointment
+        const hasValue = plan.payment_status !== 'pago_pacote' && !s._coveredByAppointment
         const perSessionPrice = hasValue ? plan.price / totalSessions : 0
         const perSessionDiscount = hasValue ? (plan.discount_amount ?? 0) / totalSessions : 0
         const perSessionFinal = hasValue ? (plan.final_paid_amount ?? 0) / totalSessions : 0
