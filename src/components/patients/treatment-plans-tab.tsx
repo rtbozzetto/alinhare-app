@@ -143,6 +143,7 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
         .eq('professional_id', plan.professional_id)
         .eq('appointment_type', typeMap[plan.plan_type] || 'tratamento')
         .neq('status', 'cancelada')
+        .neq('status', 'realizada')
         .gte('appointment_date', today)
         .order('appointment_date')
         .order('appointment_time')

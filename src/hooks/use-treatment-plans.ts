@@ -82,6 +82,23 @@ export function useTreatmentPlans(patientId?: string) {
       const updatedSessions = sessions.map(s => s.id === id ? data : s)
       setSessions(updatedSessions)
 
+      // When session is completed, mark linked appointment as 'realizada'
+      if (data.completed) {
+        await supabase
+          .from('appointments')
+          .update({ status: 'realizada' })
+          .eq('session_id', id)
+          .in('status', ['agendada', 'confirmada'])
+      }
+      // When session is unchecked, revert linked appointment to 'confirmada'
+      if (!data.completed) {
+        await supabase
+          .from('appointments')
+          .update({ status: 'confirmada' })
+          .eq('session_id', id)
+          .eq('status', 'realizada')
+      }
+
       // Auto-finalize plan when all sessions are completed
       if (data.completed && data.plan_id) {
         const planSessions = updatedSessions.filter(s => s.plan_id === data.plan_id)

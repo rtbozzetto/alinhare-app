@@ -139,7 +139,7 @@ export function useBilling() {
       .from('treatment_sessions')
       .select('*, plan:treatment_plans(*, patient:patients(full_name), professional:professionals!professional_id(id, full_name))')
       .eq('completed', true)
-      .or(`and(session_date.gte.${startDate},session_date.lte.${endDate}),and(session_date.is.null,updated_at.gte.${startDate}T00:00:00,updated_at.lte.${endDate}T23:59:59)`)
+      .or(`and(session_date.gte.${startDate},session_date.lte.${endDate}),and(updated_at.gte.${startDate}T00:00:00,updated_at.lte.${endDate}T23:59:59)`)
       .order('updated_at')
 
     if (sessionsData && data) {
