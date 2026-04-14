@@ -134,16 +134,23 @@ export function useBilling() {
       })))
     }
 
-    // Fetch completed sessions in this month that DON'T have a matching appointment
-    // Uses updated_at (when marked as done) OR session_date to determine the month
+    // Fetch ALL completed sessions, then filter client-side by month
+    // This avoids TIMESTAMPTZ vs DATE comparison issues in PostgREST filters
     const { data: sessionsData } = await supabase
       .from('treatment_sessions')
       .select('*, plan:treatment_plans(*, patient:patients(full_name), professional:professionals!professional_id(id, full_name))')
       .eq('completed', true)
-      .or(`and(session_date.gte.${startDate},session_date.lte.${endDate}),and(updated_at.gte.${startDate}T00:00:00,updated_at.lte.${endDate}T23:59:59)`)
       .order('updated_at')
 
     if (sessionsData && data) {
+      // Filter sessions that belong to this month (by session_date or updated_at)
+      const sessionsInMonth = sessionsData.filter((s: any) => {
+        const sessionDate = s.session_date?.split('T')[0] ?? null
+        const updatedDate = s.updated_at?.split('T')[0] ?? null
+        return (sessionDate && sessionDate >= startDate && sessionDate <= endDate) ||
+               (updatedDate && updatedDate >= startDate && updatedDate <= endDate)
+      })
+
       // Get appointment session_ids to exclude sessions that already have appointments
       const appointmentSessionIds = new Set(
         data.filter((a: any) => a.session_id).map((a: any) => a.session_id)
@@ -153,7 +160,7 @@ export function useBilling() {
         (plans || []).map((p: any) => p.id)
       )
 
-      const sessionsWithoutAppt = sessionsData.filter((s: any) =>
+      const sessionsWithoutAppt = sessionsInMonth.filter((s: any) =>
         !appointmentSessionIds.has(s.id) &&
         !paidPlanIds.has(s.plan_id) &&
         s.plan
@@ -170,7 +177,7 @@ export function useBilling() {
 
         return {
           id: s.id,
-          session_date: s.session_date ?? s.updated_at.split('T')[0],
+          session_date: s.session_date?.split('T')[0] ?? s.updated_at.split('T')[0],
           session_number: s.session_number,
           total_sessions: totalSessions,
           patient_name: plan.patient?.full_name ?? '-',

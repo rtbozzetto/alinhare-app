@@ -84,23 +84,25 @@ export function useTreatmentPlans(patientId?: string) {
 
       // When session is completed, mark linked appointment as 'realizada'
       // Note: session_id is not set on appointments, so we match by patient+professional+date
-      if (data.completed && data.session_date) {
+      // session_date is TIMESTAMPTZ but appointment_date is DATE, so extract date portion
+      const dateOnly = data.session_date?.split('T')[0] ?? null
+      if (data.completed && dateOnly) {
         await supabase
           .from('appointments')
           .update({ status: 'realizada' })
           .eq('patient_id', data.patient_id)
           .eq('professional_id', data.professional_id)
-          .eq('appointment_date', data.session_date)
+          .eq('appointment_date', dateOnly)
           .in('status', ['agendada', 'confirmada'])
       }
       // When session is unchecked, revert linked appointment to 'confirmada'
-      if (!data.completed && data.session_date) {
+      if (!data.completed && dateOnly) {
         await supabase
           .from('appointments')
           .update({ status: 'confirmada' })
           .eq('patient_id', data.patient_id)
           .eq('professional_id', data.professional_id)
-          .eq('appointment_date', data.session_date)
+          .eq('appointment_date', dateOnly)
           .eq('status', 'realizada')
       }
 
