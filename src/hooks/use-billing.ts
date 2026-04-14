@@ -151,22 +151,31 @@ export function useBilling() {
                (updatedDate && updatedDate >= startDate && updatedDate <= endDate)
       })
 
-      // Build set of appointment keys (patient+professional+date) to detect which sessions
-      // are already covered by an appointment row in billing
+      // Build set of appointment keys to detect sessions already covered by appointment rows
       const appointmentKeys = new Set(
         data.map((a: any) => `${a.patient_id}_${a.professional_id}_${a.appointment_date}`)
       )
 
-      const completedWithFlag = sessionsInMonth.filter((s: any) => s.plan).map((s: any) => {
+      // Only show sessions that DON'T have a matching appointment
+      const sessionsWithoutAppt = sessionsInMonth.filter((s: any) => {
+        if (!s.plan) return false
         const sessionDate = s.session_date?.split('T')[0] ?? null
         const key = sessionDate ? `${s.patient_id}_${s.professional_id}_${sessionDate}` : null
-        return { ...s, _coveredByAppointment: key ? appointmentKeys.has(key) : false }
+        const coveredByAppointment = key ? appointmentKeys.has(key) : false
+        return !coveredByAppointment
       })
 
-      setCompletedSessions(completedWithFlag.map((s: any) => {
+      // DEBUG: temporary log to find why session without appointment is missing
+      console.log('[billing] sessionsData total:', sessionsData?.length)
+      console.log('[billing] sessionsInMonth:', sessionsInMonth.length, sessionsInMonth.map((s: any) => ({
+        id: s.id, session_date: s.session_date, updated_at: s.updated_at?.split('T')[0], completed: s.completed, plan_id: s.plan_id, hasPlan: !!s.plan
+      })))
+      console.log('[billing] appointmentKeys:', [...appointmentKeys])
+      console.log('[billing] sessionsWithoutAppt:', sessionsWithoutAppt.length)
+
+      setCompletedSessions(sessionsWithoutAppt.map((s: any) => {
         const plan = s.plan
         const totalSessions = plan.total_sessions > 0 ? plan.total_sessions : 1
-        // Only 'pago' plans show values (paid per session). pago_pacote and nao_pago show zero.
         const hasValue = plan.payment_status === 'pago'
         const perSessionPrice = hasValue ? plan.price / totalSessions : 0
         const perSessionDiscount = hasValue ? (plan.discount_amount ?? 0) / totalSessions : 0
