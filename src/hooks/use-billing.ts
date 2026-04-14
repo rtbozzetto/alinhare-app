@@ -107,12 +107,11 @@ export function useBilling() {
       setAppointments(enriched as Appointment[])
     }
 
-    // Fetch pago_pacote plans created this month (shown as plan rows, sessions excluded)
-    // Plans with 'pago' status are NOT shown as plan rows — their sessions appear individually
+    // Also fetch paid treatment plans created in this month
     const { data: plans } = await supabase
       .from('treatment_plans')
       .select('*, patient:patients(full_name), professional:professionals!professional_id(id, full_name)')
-      .eq('payment_status', 'pago_pacote')
+      .in('payment_status', ['pago', 'pago_pacote'])
       .gte('created_at', `${startDate}T00:00:00`)
       .lte('created_at', `${endDate}T23:59:59`)
       .order('created_at')
@@ -156,14 +155,14 @@ export function useBilling() {
       const appointmentSessionIds = new Set(
         data.filter((a: any) => a.session_id).map((a: any) => a.session_id)
       )
-      // Exclude sessions from pago_pacote plans (shown as plan rows to avoid double-counting)
-      const pacotePlanIds = new Set(
+      // Also exclude sessions from plans already shown as paid plan rows
+      const paidPlanIds = new Set(
         (plans || []).map((p: any) => p.id)
       )
 
       const sessionsWithoutAppt = sessionsInMonth.filter((s: any) =>
         !appointmentSessionIds.has(s.id) &&
-        !pacotePlanIds.has(s.plan_id) &&
+        !paidPlanIds.has(s.plan_id) &&
         s.plan
       )
 
