@@ -151,20 +151,21 @@ export function useBilling() {
                (updatedDate && updatedDate >= startDate && updatedDate <= endDate)
       })
 
-      // Get appointment session_ids to exclude sessions that already have appointments
-      const appointmentSessionIds = new Set(
-        data.filter((a: any) => a.session_id).map((a: any) => a.session_id)
-      )
-      // Also exclude sessions from plans already shown as paid plan rows
-      const paidPlanIds = new Set(
-        (plans || []).map((p: any) => p.id)
+      // Build set of appointment keys (patient+professional+date) to detect which sessions
+      // are already covered by an appointment row in billing
+      const appointmentKeys = new Set(
+        data.map((a: any) => `${a.patient_id}_${a.professional_id}_${a.appointment_date}`)
       )
 
-      const sessionsWithoutAppt = sessionsInMonth.filter((s: any) =>
-        !appointmentSessionIds.has(s.id) &&
-        !paidPlanIds.has(s.plan_id) &&
-        s.plan
-      )
+      const sessionsWithoutAppt = sessionsInMonth.filter((s: any) => {
+        if (!s.plan) return false
+        // Check if this session has a matching appointment in billing
+        const sessionDate = s.session_date?.split('T')[0] ?? null
+        const key = sessionDate ? `${s.patient_id}_${s.professional_id}_${sessionDate}` : null
+        const coveredByAppointment = key ? appointmentKeys.has(key) : false
+        // Show session if no appointment row covers it
+        return !coveredByAppointment
+      })
 
       setCompletedSessions(sessionsWithoutAppt.map((s: any) => {
         const plan = s.plan
