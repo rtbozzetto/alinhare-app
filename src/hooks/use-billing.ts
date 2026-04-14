@@ -200,7 +200,7 @@ export function useBilling() {
           price: Math.round(perSessionPrice * 100) / 100,
           discount_amount: Math.round(perSessionDiscount * 100) / 100,
           final_paid_amount: Math.round(perSessionFinal * 100) / 100,
-          payment_status: plan.payment_status,
+          payment_status: paidPlanIds.has(s.plan_id) ? 'pago_pacote' : plan.payment_status,
           commission_amount: Math.round(perSessionCommission * 100) / 100,
           clinic_amount: Math.round(perSessionClinic * 100) / 100,
           lead_source: plan.lead_source,
