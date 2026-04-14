@@ -27,15 +27,17 @@ export function useAppointments() {
     setLoading(false)
   }, [supabase])
 
-  const fetchByRange = useCallback(async (startDate: string, endDate: string) => {
+  const fetchByRange = useCallback(async (startDate: string, endDate: string, professionalId?: string) => {
     setLoading(true)
-    const { data, error } = await supabase
+    let query = supabase
       .from('appointments')
       .select('*, patient:patients(full_name, phone), professional:professionals!professional_id(id, full_name)')
       .gte('appointment_date', startDate)
       .lte('appointment_date', endDate)
       .order('appointment_date')
       .order('appointment_time')
+    if (professionalId) query = query.eq('professional_id', professionalId)
+    const { data, error } = await query
     if (error) {
       console.error('fetchByRange error:', error)
     }

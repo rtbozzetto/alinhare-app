@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { usePatients } from '@/hooks/use-patients'
 import { useUserRole } from '@/hooks/use-user-role'
@@ -25,6 +25,14 @@ import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function PatientDetailPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center py-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-600 border-t-transparent" /></div>}>
+      <PatientDetailContent />
+    </Suspense>
+  )
+}
+
+function PatientDetailContent() {
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()

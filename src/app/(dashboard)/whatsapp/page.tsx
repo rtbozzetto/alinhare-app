@@ -95,10 +95,10 @@ function WhatsAppContent() {
   function buildProfessionalSummary(profId: string) {
     const profAppts = groupedByProfessional[profId] || []
     const profName = getProfName(profId)
-    const tomorrowDate = format(addDays(currentDate, 0), 'dd/MM/yyyy')
+    const summaryDate = format(currentDate, 'dd/MM/yyyy')
     const dayName = format(currentDate, 'EEEE', { locale: ptBR })
 
-    let summary = `Olá, ${profName.split(' ')[0]}! Segue o resumo da sua agenda de ${dayName} (${tomorrowDate}):\n\n`
+    let summary = `Olá, ${profName.split(' ')[0]}! Segue o resumo da sua agenda de ${dayName} (${summaryDate}):\n\n`
 
     const sorted = [...profAppts].sort((a, b) =>
       (a.appointment_time ?? '').localeCompare(b.appointment_time ?? '')

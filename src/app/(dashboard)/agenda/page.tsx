@@ -49,7 +49,7 @@ export default function AgendaPage() {
     } else {
       const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 })
       const weekEnd = addDays(weekStart, 6)
-      fetchByRange(format(weekStart, 'yyyy-MM-dd'), format(weekEnd, 'yyyy-MM-dd'))
+      fetchByRange(format(weekStart, 'yyyy-MM-dd'), format(weekEnd, 'yyyy-MM-dd'), effectiveProfId)
     }
   }, [currentDate, viewMode, effectiveProfId, fetchAppointments, fetchByRange])
 

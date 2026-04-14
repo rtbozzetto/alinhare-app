@@ -96,9 +96,15 @@ export function ExamsTab({ patientId }: ExamsTabProps) {
 
   async function handleDelete(exam: PatientExam) {
     try {
-      // Delete from storage
-      const pathParts = exam.file_url.split('exam-files/')
-      const storagePath = pathParts.length > 1 ? pathParts[1] : exam.file_url
+      // Re-fetch original file_url from DB (exam.file_url has been replaced with signed URL)
+      const { data: original } = await supabase
+        .from('patient_exams')
+        .select('file_url')
+        .eq('id', exam.id)
+        .single()
+      const originalUrl = original?.file_url ?? exam.file_url
+      const pathParts = originalUrl.split('exam-files/')
+      const storagePath = pathParts.length > 1 ? pathParts[1] : originalUrl
       await supabase.storage.from('exam-files').remove([storagePath])
 
       // Delete record

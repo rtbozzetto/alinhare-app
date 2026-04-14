@@ -83,12 +83,14 @@ export const POSTURE_BODY_REGIONS = [
   'Joelho D', 'Joelho E', 'Tornozelo D', 'Tornozelo E',
 ] as const
 
-// Commission rates
+// Commission rates (defaults — actual logic in utils.ts calculateCommission)
+// Lead da clínica: 60% clínica, 40% profissional (todos)
+// Lead do profissional: 60% profissional, 40% clínica (exceto Janaína: 100%/0%)
 export const COMMISSION = {
-  CLINICA_PROFESSIONAL_PERCENT: 60,
-  CLINICA_CLINIC_PERCENT: 40,
-  PROFISSIONAL_PROFESSIONAL_PERCENT: 100,
-  PROFISSIONAL_CLINIC_PERCENT: 0,
+  CLINICA_PROFESSIONAL_PERCENT: 40,
+  CLINICA_CLINIC_PERCENT: 60,
+  PROFISSIONAL_PROFESSIONAL_PERCENT: 60,
+  PROFISSIONAL_CLINIC_PERCENT: 40,
 } as const
 
 // Credit card fee

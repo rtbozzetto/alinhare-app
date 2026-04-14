@@ -168,7 +168,7 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
       openCreateDialog()
       onAutoOpenHandled?.()
     }
-  }, [autoOpenCreate])
+  }, [autoOpenCreate, openCreateDialog, onAutoOpenHandled])
 
   function updateField(field: string, value: unknown) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -411,20 +411,15 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
       const existingCount = editingPlan.total_sessions
-      const startDate = editForm.start_date ? new Date(editForm.start_date + 'T12:00:00') : new Date()
       const newSessions = Array.from(
         { length: editForm.total_sessions - existingCount },
-        (_, i) => {
-          const sessionDate = new Date(startDate)
-          sessionDate.setDate(sessionDate.getDate() + (existingCount + i) * 7)
-          return {
-            plan_id: editingPlan.id,
-            patient_id: patientId,
-            professional_id: editForm.professional_id,
-            session_number: existingCount + i + 1,
-            session_date: sessionDate.toISOString().split('T')[0],
-          }
-        }
+        (_, i) => ({
+          plan_id: editingPlan.id,
+          patient_id: patientId,
+          professional_id: editForm.professional_id,
+          session_number: existingCount + i + 1,
+          session_date: null,
+        })
       )
       await supabase.from('treatment_sessions').insert(newSessions)
     }

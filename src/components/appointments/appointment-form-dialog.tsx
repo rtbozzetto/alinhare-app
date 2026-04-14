@@ -366,11 +366,14 @@ export function AppointmentFormDialog({
       return
     }
 
-    // Check past date
-    const today = new Date().toISOString().split('T')[0]
-    if (form.appointment_date < today) {
-      toast.error('Não é possível agendar em uma data que já passou.')
-      return
+    // Check past date (only for new appointments, not edits)
+    if (!isEdit) {
+      const now = new Date()
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+      if (form.appointment_date < today) {
+        toast.error('Não é possível agendar em uma data que já passou.')
+        return
+      }
     }
 
     // Check for conflicts (skip if user already confirmed)
@@ -492,7 +495,7 @@ export function AppointmentFormDialog({
           </button>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} data-appointment-form className="space-y-4">
           {/* Patient search */}
           <div className="space-y-2">
             <Label>Paciente *</Label>
@@ -871,10 +874,16 @@ export function AppointmentFormDialog({
                   Cancelar
                 </Button>
                 <Button
-                  type="submit"
+                  type="button"
                   size="sm"
                   className="bg-orange-600 hover:bg-orange-700"
-                  onClick={() => setConflictConfirmed(true)}
+                  onClick={() => {
+                    setConflictConfirmed(true)
+                    setTimeout(() => {
+                      const form = document.querySelector('form[data-appointment-form]') as HTMLFormElement
+                      form?.requestSubmit()
+                    }, 0)
+                  }}
                 >
                   Agendar mesmo assim
                 </Button>

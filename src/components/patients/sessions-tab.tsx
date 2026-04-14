@@ -176,7 +176,7 @@ export function SessionsTab({ patientId, patientName, onRequestNewPlan }: Sessio
       .limit(1)
       .maybeSingle()
     setCurrentAnalysis(analysis)
-  }, [supabase, patientId])
+  }, [supabase, patientId, sessions])
 
   function openDetail(session: TreatmentSession) {
     setSelectedSession(session)

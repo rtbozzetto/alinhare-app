@@ -5,7 +5,9 @@ import { cookies } from 'next/headers'
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/reset-password?type=recovery'
+  const rawNext = searchParams.get('next') ?? '/reset-password?type=recovery'
+  // Validate redirect path to prevent open redirect attacks
+  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/reset-password?type=recovery'
 
   if (code) {
     const cookieStore = await cookies()

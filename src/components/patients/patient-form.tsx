@@ -115,7 +115,7 @@ export function PatientForm({ patient }: PatientFormProps) {
 
     const payload: Omit<Patient, 'id' | 'created_at' | 'updated_at'> = {
       full_name: form.full_name.trim(),
-      birth_date: form.birth_date || null,
+      birth_date: form.birth_date && /^\d{4}-\d{2}-\d{2}$/.test(form.birth_date) ? form.birth_date : null,
       sex: form.sex,
       phone: form.phone || null,
       cpf: form.cpf || null,
