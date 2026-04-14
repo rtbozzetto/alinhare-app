@@ -171,10 +171,16 @@ export function useBilling() {
         })
       )
 
+      // Plans already shown as paid plan rows — sessions from these show without value
+      const paidPlanIds = new Set(
+        (plans || []).map((p: any) => p.id)
+      )
+
       setCompletedSessions(allCompletedInMonth.map((s: any) => {
         const plan = s.plan
         const totalSessions = plan.total_sessions > 0 ? plan.total_sessions : 1
-        const hasValue = plan.payment_status === 'pago'
+        // Show value only if plan is NOT already shown as a paid plan row
+        const hasValue = !paidPlanIds.has(s.plan_id)
         const perSessionPrice = hasValue ? plan.price / totalSessions : 0
         const perSessionDiscount = hasValue ? (plan.discount_amount ?? 0) / totalSessions : 0
         const perSessionFinal = hasValue ? (plan.final_paid_amount ?? 0) / totalSessions : 0
