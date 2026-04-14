@@ -127,14 +127,29 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
   }, [plans, fetchSessions])
 
   // Fetch next upcoming appointment per plan
+  // Cross-references with completed sessions to skip appointments for finished sessions
   const fetchNextAppointments = useCallback(async () => {
     if (plans.length === 0) return
     const supabase = createClient()
-    const today = new Date().toISOString().split('T')[0]
+    const now = new Date()
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
     const result: Record<string, { id: string; date: string; time: string }> = {}
 
     for (const plan of plans) {
       if (!plan.active) continue
+
+      // Get dates of completed sessions for this plan
+      const { data: completedSessions } = await supabase
+        .from('treatment_sessions')
+        .select('session_date')
+        .eq('plan_id', plan.id)
+        .eq('completed', true)
+      const completedDates = new Set(
+        (completedSessions ?? [])
+          .map((s: any) => s.session_date?.split('T')[0])
+          .filter(Boolean)
+      )
+
       const typeMap: Record<string, string> = { treatment: 'tratamento', maintenance: 'manutencao', avaliacao: 'avaliacao' }
       const { data } = await supabase
         .from('appointments')
@@ -143,16 +158,20 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
         .eq('professional_id', plan.professional_id)
         .eq('appointment_type', typeMap[plan.plan_type] || 'tratamento')
         .neq('status', 'cancelada')
-        .neq('status', 'realizada')
         .gte('appointment_date', today)
         .order('appointment_date')
         .order('appointment_time')
-        .limit(1)
-      if (data && data.length > 0) {
-        result[plan.id] = {
-          id: data[0].id,
-          date: data[0].appointment_date,
-          time: data[0].appointment_time?.slice(0, 5) ?? '',
+        .limit(10)
+
+      if (data) {
+        // Find first appointment whose date doesn't match a completed session
+        const next = data.find(a => !completedDates.has(a.appointment_date))
+        if (next) {
+          result[plan.id] = {
+            id: next.id,
+            date: next.appointment_date,
+            time: next.appointment_time?.slice(0, 5) ?? '',
+          }
         }
       }
     }
