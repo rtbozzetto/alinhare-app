@@ -157,24 +157,22 @@ export function useBilling() {
         data.map((a: any) => `${a.patient_id}_${a.professional_id}_${a.appointment_date}`)
       )
 
-      const sessionsWithoutAppt = sessionsInMonth.filter((s: any) => {
-        if (!s.plan) return false
-        // Check if this session has a matching appointment in billing
+      const completedWithFlag = sessionsInMonth.filter((s: any) => s.plan).map((s: any) => {
         const sessionDate = s.session_date?.split('T')[0] ?? null
         const key = sessionDate ? `${s.patient_id}_${s.professional_id}_${sessionDate}` : null
-        const coveredByAppointment = key ? appointmentKeys.has(key) : false
-        // Show session if no appointment row covers it
-        return !coveredByAppointment
+        return { ...s, _coveredByAppointment: key ? appointmentKeys.has(key) : false }
       })
 
-      setCompletedSessions(sessionsWithoutAppt.map((s: any) => {
+      setCompletedSessions(completedWithFlag.map((s: any) => {
         const plan = s.plan
         const totalSessions = plan.total_sessions > 0 ? plan.total_sessions : 1
-        const perSessionPrice = plan.price / totalSessions
-        const perSessionDiscount = (plan.discount_amount ?? 0) / totalSessions
-        const perSessionFinal = (plan.final_paid_amount ?? 0) / totalSessions
-        const perSessionCommission = (plan.commission_amount ?? 0) / totalSessions
-        const perSessionClinic = (plan.clinic_amount ?? 0) / totalSessions
+        // Sessions covered by appointment show with zero values to avoid double-counting
+        const hasValue = !s._coveredByAppointment
+        const perSessionPrice = hasValue ? plan.price / totalSessions : 0
+        const perSessionDiscount = hasValue ? (plan.discount_amount ?? 0) / totalSessions : 0
+        const perSessionFinal = hasValue ? (plan.final_paid_amount ?? 0) / totalSessions : 0
+        const perSessionCommission = hasValue ? (plan.commission_amount ?? 0) / totalSessions : 0
+        const perSessionClinic = hasValue ? (plan.clinic_amount ?? 0) / totalSessions : 0
 
         return {
           id: s.id,
