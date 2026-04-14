@@ -223,9 +223,9 @@ export default function AgendaPage() {
         </div>
       ) : (
         <div className="overflow-auto">
-          <div className={cn("min-w-[340px]", days.length > 1 && "min-w-[600px]")}>
+          <div className={cn("min-w-[340px]", days.length > 1 && "min-w-[900px]")}>
             {/* Header */}
-            <div className="grid border-b" style={{ gridTemplateColumns: `${days.length === 1 ? '50px' : '80px'} repeat(${days.length}, 1fr)` }}>
+            <div className="grid border-b" style={{ gridTemplateColumns: `60px repeat(${days.length}, 1fr)` }}>
               <div className="p-1 sm:p-2 text-xs font-medium text-muted-foreground">Hora</div>
               {days.map(day => (
                 <div key={day.toISOString()} className="border-l p-1 sm:p-2 text-center text-xs font-medium">
@@ -238,7 +238,7 @@ export default function AgendaPage() {
               <div
                 key={time}
                 className="grid border-b"
-                style={{ gridTemplateColumns: `${days.length === 1 ? '50px' : '80px'} repeat(${days.length}, 1fr)` }}
+                style={{ gridTemplateColumns: `60px repeat(${days.length}, 1fr)` }}
               >
                 <div className="p-1 sm:p-2 text-xs text-muted-foreground">{time}</div>
                 {days.map(day => {
@@ -246,7 +246,7 @@ export default function AgendaPage() {
                   return (
                     <div
                       key={day.toISOString() + time}
-                      className="min-h-[48px] cursor-pointer border-l p-1 transition-colors hover:bg-accent"
+                      className="min-h-[48px] cursor-pointer border-l p-1 transition-colors hover:bg-accent overflow-hidden"
                       onClick={() => handleSlotClick(day, time)}
                     >
                       {slotAppts.map(appt => (
