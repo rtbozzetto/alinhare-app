@@ -414,55 +414,66 @@ export function AppointmentFormDialog({
       if (error) {
         toast.error(`Erro ao atualizar agendamento: ${error.message || 'erro desconhecido'}`)
       } else {
-        // Always sync session_date on edit (handles both date changes and pre-existing mismatches)
+        // Always sync session_date on edit — match session by appointment's position in the plan
         if (form.appointment_date) {
           try {
-            const { data: allSessions, error: fetchErr } = await supabase
-              .from('treatment_sessions')
-              .select('id, session_date, session_number, plan_id')
+            // Find active plan for this patient+professional+type
+            const typeMap: Record<string, string> = { tratamento: 'treatment', manutencao: 'maintenance', avaliacao: 'avaliacao' }
+            const planType = typeMap[form.appointment_type] ?? 'treatment'
+            const { data: planData } = await supabase
+              .from('treatment_plans')
+              .select('id')
               .eq('patient_id', form.patient_id)
               .eq('professional_id', form.professional_id)
-            if (fetchErr) {
-              toast.error(`Erro ao buscar sessões: ${fetchErr.message}`)
+              .eq('plan_type', planType)
+              .eq('active', true)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle()
+
+            if (!planData) {
+              // No active plan — nothing to sync
+              toast.success('Agendamento atualizado!')
+              setConflictWarning(null)
+              setConflictConfirmed(false)
+              onClose()
+              return
             }
 
-            // Normalize date comparison using Date parsing (handles timezone variations)
-            const normalizeDate = (d: string | null): string | null => {
-              if (!d) return null
-              // Parse and extract local date portion in YYYY-MM-DD format
-              const parts = d.split('T')[0]
-              return parts
-            }
+            // Get all appointments for this patient+prof+type ordered by date
+            const { data: allAppts } = await supabase
+              .from('appointments')
+              .select('id, appointment_date, appointment_time')
+              .eq('patient_id', form.patient_id)
+              .eq('professional_id', form.professional_id)
+              .eq('appointment_type', form.appointment_type)
+              .neq('status', 'cancelada')
+              .order('appointment_date')
+              .order('appointment_time')
 
-            // Try matching by: (1) old date (2) new date (3) any session matching this appointment
-            let matchingSession = allSessions?.find((s: any) => {
-              const sDate = normalizeDate(s.session_date)
-              return sDate === oldDate || sDate === form.appointment_date
-            })
-
-            // Fallback: if no date match but there's an activePlan, use position-based match
-            if (!matchingSession && activePlan) {
-              // Find session by appointment's position within plan (e.g., first pending session)
-              const planSessions = allSessions?.filter((s: any) => s.plan_id === activePlan.id)
-                ?.sort((a: any, b: any) => a.session_number - b.session_number) ?? []
-              // Find session that matches by date or is the closest pending one
-              matchingSession = planSessions.find((s: any) =>
-                normalizeDate(s.session_date) === oldDate
-              ) || planSessions.find((s: any) => !s.session_date)
-            }
-
-            if (matchingSession) {
-              const { error: syncErr } = await supabase
-                .from('treatment_sessions')
-                .update({ session_date: `${form.appointment_date}T12:00:00` })
-                .eq('id', matchingSession.id)
-              if (syncErr) {
-                toast.error(`Erro ao sincronizar sessão: ${syncErr.message}`)
-              } else {
-                toast.success('Sessão sincronizada!')
-              }
+            // Find position of current appointment
+            const idx = allAppts?.findIndex(a => a.id === appointment!.id) ?? -1
+            if (idx < 0) {
+              toast.warning('Agendamento não encontrado na lista do plano')
             } else {
-              toast.warning(`Nenhuma sessão encontrada para ${oldDate}. Sessions: ${allSessions?.length ?? 0}`)
+              // Get sessions of this plan ordered by session_number
+              const { data: planSessions } = await supabase
+                .from('treatment_sessions')
+                .select('id, session_number')
+                .eq('plan_id', planData.id)
+                .order('session_number')
+
+              // Match the Nth appointment to the Nth session
+              const targetSession = planSessions?.[idx]
+              if (targetSession) {
+                const { error: syncErr } = await supabase
+                  .from('treatment_sessions')
+                  .update({ session_date: `${form.appointment_date}T12:00:00` })
+                  .eq('id', targetSession.id)
+                if (syncErr) {
+                  toast.error(`Erro ao sincronizar sessão: ${syncErr.message}`)
+                }
+              }
             }
           } catch (syncError: any) {
             toast.error(`Erro sync: ${syncError?.message || 'desconhecido'}`)
