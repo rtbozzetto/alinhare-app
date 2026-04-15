@@ -85,40 +85,38 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 export function Sidebar() {
+  return (
+    <aside className="hidden md:flex w-56 flex-col border-r bg-white">
+      <div className="flex h-14 items-center px-4">
+        <Link href="/" className="text-xl font-bold text-teal-600">
+          Alinhare
+        </Link>
+      </div>
+      <NavContent />
+    </aside>
+  )
+}
+
+export function MobileNav() {
   const [open, setOpen] = useState(false)
 
   return (
-    <>
-      {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-56 flex-col border-r bg-white">
-        <div className="flex h-14 items-center px-4">
-          <Link href="/" className="text-xl font-bold text-teal-600">
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-10 w-10 md:hidden">
+          <Menu className="h-5 w-5" />
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left" className="w-64 p-0">
+        <SheetHeader className="flex h-14 items-center px-4 border-b">
+          <SheetTitle className="text-xl font-bold text-teal-600">
             Alinhare
-          </Link>
+          </SheetTitle>
+        </SheetHeader>
+        <div className="flex flex-1 flex-col h-[calc(100vh-3.5rem)]">
+          <NavContent onNavigate={() => setOpen(false)} />
         </div>
-        <NavContent />
-      </aside>
-
-      {/* Mobile hamburger button — rendered in header area via CSS positioning */}
-      <div className="fixed top-0 left-0 z-50 flex h-14 items-center px-3 md:hidden">
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-10 w-10">
-              <Menu className="h-5 w-5" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-64 p-0">
-            <SheetHeader className="flex h-14 items-center px-4 border-b">
-              <SheetTitle className="text-xl font-bold text-teal-600">
-                Alinhare
-              </SheetTitle>
-            </SheetHeader>
-            <div className="flex flex-1 flex-col h-[calc(100vh-3.5rem)]">
-              <NavContent onNavigate={() => setOpen(false)} />
-            </div>
-          </SheetContent>
-        </Sheet>
-      </div>
-    </>
+      </SheetContent>
+    </Sheet>
   )
 }
