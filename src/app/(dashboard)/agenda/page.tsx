@@ -57,28 +57,74 @@ export default function AgendaPage() {
     loadAppointments()
   }, [loadAppointments])
 
-  // Session info: for plan appointments, compute "Sessão X de Y"
-  const sessionInfo = useMemo(() => {
-    const info: Record<string, string> = {}
-    // Group plan appointments by patient+professional, sorted by date
-    const planAppts = appointments
-      .filter(a => a.payment_status === 'pago_pacote' && a.status !== 'cancelada')
-      .sort((a, b) => {
-        const d = a.appointment_date.localeCompare(b.appointment_date)
-        return d !== 0 ? d : (a.appointment_time ?? '').localeCompare(b.appointment_time ?? '')
-      })
-    const groups: Record<string, typeof planAppts> = {}
-    for (const a of planAppts) {
-      const key = `${a.patient_id}_${a.professional_id}`
-      if (!groups[key]) groups[key] = []
-      groups[key].push(a)
+  // Session info: for plan appointments, compute "Sessão X de Y" using global index
+  const [sessionInfo, setSessionInfo] = useState<Record<string, string>>({})
+  useEffect(() => {
+    async function computeSessionInfo() {
+      if (appointments.length === 0) { setSessionInfo({}); return }
+      const supabase = (await import('@/lib/supabase/client')).createClient()
+      const patientIds = [...new Set(appointments.map(a => a.patient_id))]
+      const typeMap: Record<string, string> = { treatment: 'tratamento', maintenance: 'manutencao', avaliacao: 'avaliacao' }
+
+      // Fetch plans for these patients
+      const { data: plans } = await supabase
+        .from('treatment_plans')
+        .select('id, patient_id, professional_id, plan_type, total_sessions')
+        .in('patient_id', patientIds.length > 0 ? patientIds : ['__none__'])
+
+      if (!plans || plans.length === 0) { setSessionInfo({}); return }
+
+      // Match appointments to plans
+      const matchedKeys = new Set<string>()
+      const apptPlanMap = new Map<string, any>()
+      for (const appt of appointments) {
+        if (appt.status === 'cancelada') continue
+        const plan = plans.find(p =>
+          p.patient_id === appt.patient_id &&
+          p.professional_id === appt.professional_id &&
+          typeMap[p.plan_type] === appt.appointment_type
+        )
+        if (plan) {
+          const key = `${appt.patient_id}_${appt.professional_id}_${appt.appointment_type}`
+          matchedKeys.add(key)
+          apptPlanMap.set(appt.id, plan)
+        }
+      }
+
+      if (matchedKeys.size === 0) { setSessionInfo({}); return }
+
+      // Fetch ALL appointments for matched plans to get global index
+      const { data: allAppts } = await supabase
+        .from('appointments')
+        .select('id, patient_id, professional_id, appointment_type, appointment_date, appointment_time')
+        .in('patient_id', patientIds)
+        .neq('status', 'cancelada')
+        .order('appointment_date')
+        .order('appointment_time')
+
+      const globalByKey: Record<string, string[]> = {}
+      if (allAppts) {
+        for (const a of allAppts) {
+          const key = `${a.patient_id}_${a.professional_id}_${a.appointment_type}`
+          if (matchedKeys.has(key)) {
+            if (!globalByKey[key]) globalByKey[key] = []
+            globalByKey[key].push(a.id)
+          }
+        }
+      }
+
+      const info: Record<string, string> = {}
+      for (const appt of appointments) {
+        const plan = apptPlanMap.get(appt.id)
+        if (plan) {
+          const key = `${appt.patient_id}_${appt.professional_id}_${appt.appointment_type}`
+          const idx = globalByKey[key]?.indexOf(appt.id) ?? -1
+          info[appt.id] = `${idx + 1}/${plan.total_sessions}`
+        }
+      }
+      setSessionInfo(info)
     }
-    for (const group of Object.values(groups)) {
-      group.forEach((a, i) => {
-        info[a.id] = `${i + 1}/${group.length}`
-      })
-    }
-    return info
+    computeSessionInfo()
   }, [appointments])
 
   function handleWhatsApp(appt: Appointment) {
