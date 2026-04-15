@@ -446,38 +446,47 @@ export function AppointmentFormDialog({
             }
 
             if (planData) {
-              const { data: allAppts } = await supabase
-                .from('appointments')
-                .select('id')
-                .eq('patient_id', form.patient_id)
-                .eq('professional_id', form.professional_id)
-                .eq('appointment_type', form.appointment_type)
-                .neq('status', 'cancelada')
-                .order('appointment_date')
-                .order('appointment_time')
+              // Strategy 1: Find session by matching the OLD appointment_date (startsWith)
+              const { data: planSessions } = await supabase
+                .from('treatment_sessions')
+                .select('id, session_number, session_date, completed')
+                .eq('plan_id', planData.id)
+                .order('session_number')
 
-              const idx = allAppts?.findIndex(a => a.id === appointment!.id) ?? -1
-              if (idx >= 0) {
-                const { data: planSessions } = await supabase
-                  .from('treatment_sessions')
+              let targetSession = planSessions?.find(s =>
+                s.session_date?.startsWith(oldDate)
+              )
+
+              // Strategy 2: If no match by old date, use position-based but skip completed sessions
+              if (!targetSession) {
+                const { data: allAppts } = await supabase
+                  .from('appointments')
                   .select('id')
-                  .eq('plan_id', planData.id)
-                  .order('session_number')
+                  .eq('patient_id', form.patient_id)
+                  .eq('professional_id', form.professional_id)
+                  .eq('appointment_type', form.appointment_type)
+                  .neq('status', 'cancelada')
+                  .order('appointment_date')
+                  .order('appointment_time')
 
-                const targetSession = planSessions?.[idx]
-                if (targetSession) {
-                  const { data: updatedRows, error: syncErr } = await supabase
-                    .from('treatment_sessions')
-                    .update({ session_date: `${form.appointment_date}T12:00:00` })
-                    .eq('id', targetSession.id)
-                    .select()
-                  if (syncErr) {
-                    toast.error(`Erro update: ${syncErr.message}`)
-                  } else if (!updatedRows || updatedRows.length === 0) {
-                    toast.error('Update retornou 0 linhas (RLS?)')
-                  } else {
-                    toast.success(`✅ Sessão atualizada para ${form.appointment_date}`)
-                  }
+                const apptIdx = allAppts?.findIndex(a => a.id === appointment!.id) ?? -1
+                if (apptIdx >= 0) {
+                  // Filter out completed sessions (they don't have appointments anymore)
+                  const pendingSessions = planSessions?.filter(s => !s.completed) ?? []
+                  targetSession = pendingSessions[apptIdx]
+                }
+              }
+
+              if (targetSession) {
+                const { data: updatedRows, error: syncErr } = await supabase
+                  .from('treatment_sessions')
+                  .update({ session_date: `${form.appointment_date}T12:00:00` })
+                  .eq('id', targetSession.id)
+                  .select()
+                if (syncErr) {
+                  toast.error(`Erro update: ${syncErr.message}`)
+                } else if (!updatedRows || updatedRows.length === 0) {
+                  toast.error('Update retornou 0 linhas (RLS?)')
                 }
               }
             }
