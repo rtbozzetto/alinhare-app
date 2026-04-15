@@ -414,17 +414,19 @@ export function AppointmentFormDialog({
       if (error) {
         toast.error(`Erro ao atualizar agendamento: ${error.message || 'erro desconhecido'}`)
       } else {
-        // Sync session_date if appointment_date changed
-        if (form.appointment_date && form.appointment_date !== oldDate) {
+        // Always sync session_date on edit (handles both date changes and pre-existing mismatches)
+        if (form.appointment_date) {
           try {
-            // Fetch all sessions for this patient+professional and filter by old date (string match)
             const { data: allSessions } = await supabase
               .from('treatment_sessions')
               .select('id, session_date')
               .eq('patient_id', form.patient_id)
               .eq('professional_id', form.professional_id)
               .not('session_date', 'is', null)
-            const matchingSession = allSessions?.find((s: any) => s.session_date?.startsWith(oldDate))
+            // Try to find a session matching either the old or new date
+            const matchingSession = allSessions?.find((s: any) =>
+              s.session_date?.startsWith(oldDate) || s.session_date?.startsWith(form.appointment_date)
+            )
             if (matchingSession) {
               const { error: syncErr } = await supabase
                 .from('treatment_sessions')
@@ -432,7 +434,7 @@ export function AppointmentFormDialog({
                 .eq('id', matchingSession.id)
               if (syncErr) console.error('Session date sync error:', syncErr)
             } else {
-              console.warn('No matching session found for oldDate:', oldDate)
+              console.warn('No matching session found for oldDate/newDate:', oldDate, form.appointment_date)
             }
           } catch (syncError) {
             console.error('Session date sync failed:', syncError)
