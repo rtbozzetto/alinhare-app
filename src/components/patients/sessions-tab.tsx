@@ -780,8 +780,8 @@ export function SessionsTab({ patientId, patientName, onRequestNewPlan }: Sessio
                       <p className="text-sm text-red-700 mt-1">{validationError.message}</p>
                       {validationError.issues.length > 0 && (
                         <ul className="mt-1 list-disc pl-4 text-xs text-red-600">
-                          {validationError.issues.map((issue, i) => (
-                            <li key={i}>{issue}</li>
+                          {validationError.issues.map((issue) => (
+                            <li key={issue}>{issue}</li>
                           ))}
                         </ul>
                       )}

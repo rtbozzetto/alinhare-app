@@ -633,7 +633,7 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
         if (i < planSessions.length) {
           await supabase
             .from('treatment_sessions')
-            .update({ session_date: item.date })
+            .update({ session_date: `${item.date}T12:00:00` })
             .eq('id', planSessions[i].id)
         }
       }
@@ -1408,7 +1408,7 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                 <Label>Preview ({schedulePreview.length} agendamentos)</Label>
                 <div className="max-h-60 overflow-y-auto rounded-lg border divide-y">
                   {schedulePreview.map((item, i) => (
-                    <div key={i} className="flex items-center gap-2 px-3 py-2">
+                    <div key={`${item.date}-${item.time}`} className="flex items-center gap-2 px-3 py-2">
                       <span className="text-sm font-medium w-6 text-muted-foreground shrink-0">{i + 1}.</span>
                       <Input
                         type="date"

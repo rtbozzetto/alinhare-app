@@ -331,7 +331,7 @@ export default function AgendaPage() {
                             )}
                             {viewMode === 'week' && appt.professional?.full_name && (
                               <span className="truncate text-muted-foreground">
-                                {appt.professional.full_name.split(' ')[0]}
+                                {appt.professional?.full_name?.split(' ')[0]}
                               </span>
                             )}
                           </div>

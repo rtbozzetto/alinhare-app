@@ -435,7 +435,7 @@ export function BatchScheduleDialog({
                   <div className="max-h-60 overflow-y-auto rounded-lg border divide-y">
                     {preview.map((item, i) => (
                       <div
-                        key={i}
+                        key={`${item.date}-${item.time}`}
                         className={`flex items-center gap-2 px-3 py-2 ${item.date < new Date().toISOString().split('T')[0] ? 'bg-red-50' : item.conflict ? 'bg-orange-50' : ''}`}
                       >
                         <span className="text-sm font-medium w-8 text-muted-foreground">{i + 1}.</span>

@@ -431,7 +431,7 @@ export function AppointmentFormDialog({
               // Update the specific session that was selected
               const { error: syncErr } = await supabase
                 .from('treatment_sessions')
-                .update({ session_date: form.appointment_date })
+                .update({ session_date: `${form.appointment_date}T12:00:00` })
                 .eq('id', defaultSessionId)
               if (syncErr) console.error('Session date sync error:', syncErr)
             } else if (activePlan) {
@@ -447,7 +447,7 @@ export function AppointmentFormDialog({
               if (pendingSessions && pendingSessions.length > 0) {
                 const { error: syncErr } = await supabase
                   .from('treatment_sessions')
-                  .update({ session_date: form.appointment_date })
+                  .update({ session_date: `${form.appointment_date}T12:00:00` })
                   .eq('id', pendingSessions[0].id)
                 if (syncErr) console.error('Session date sync error:', syncErr)
               }

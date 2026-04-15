@@ -153,7 +153,6 @@ export function useBilling() {
     }
 
     // Fetch ALL completed sessions, then filter client-side by month
-    // This avoids TIMESTAMPTZ vs DATE comparison issues in PostgREST filters
     const { data: sessionsData } = await supabase
       .from('treatment_sessions')
       .select('*, plan:treatment_plans(*, patient:patients(full_name, phone), professional:professionals!professional_id(id, full_name))')
@@ -169,7 +168,6 @@ export function useBilling() {
                (updatedDate && updatedDate >= startDate && updatedDate <= endDate)
       })
 
-      // All completed sessions in month appear in the sessions section
       const allCompletedInMonth = sessionsInMonth.filter((s: any) => s.plan)
 
       // Build set of completed session keys to remove matching appointments (avoid duplication)
@@ -181,7 +179,8 @@ export function useBilling() {
           })
           .filter(Boolean)
       )
-      // Remove appointments that are covered by a completed session
+
+      // Remove appointments covered by completed sessions
       setAppointments((prev: Appointment[]) =>
         prev.filter((a: any) => {
           const key = `${a.patient_id}_${a.professional_id}_${a.appointment_date}`
@@ -207,7 +206,7 @@ export function useBilling() {
 
         return {
           id: s.id,
-          session_date: s.session_date?.split('T')[0] ?? s.updated_at.split('T')[0],
+          session_date: s.session_date?.split('T')[0] ?? s.updated_at?.split('T')[0] ?? '',
           session_number: s.session_number,
           total_sessions: totalSessions,
           patient_name: plan.patient?.full_name ?? '-',
