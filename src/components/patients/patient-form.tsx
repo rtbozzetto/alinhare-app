@@ -279,10 +279,10 @@ export function PatientForm({ patient }: PatientFormProps) {
         </CardContent>
       </Card>
 
-      {/* Atividades e Historico */}
+      {/* Atividades e Histórico */}
       <Card>
         <CardHeader>
-          <CardTitle>Atividades e Historico</CardTitle>
+          <CardTitle>Atividades e Histórico</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 sm:gap-4 sm:grid-cols-2">
           <div className="space-y-2">
@@ -294,7 +294,7 @@ export function PatientForm({ patient }: PatientFormProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="surgery">Historico cirurgico</Label>
+            <Label htmlFor="surgery">Histórico cirúrgico</Label>
             <Input
               id="surgery"
               value={form.surgery_history}
@@ -302,7 +302,7 @@ export function PatientForm({ patient }: PatientFormProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="medication">Medicacoes</Label>
+            <Label htmlFor="medication">Medicações</Label>
             <Input
               id="medication"
               value={form.medication}
@@ -371,7 +371,7 @@ export function PatientForm({ patient }: PatientFormProps) {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="duration">Duracao</Label>
+              <Label htmlFor="duration">Duração</Label>
               <Input
                 id="duration"
                 value={form.discomfort_duration}
@@ -475,7 +475,7 @@ export function PatientForm({ patient }: PatientFormProps) {
       <div className="sticky bottom-0 -mx-2 sm:-mx-4 bg-background border-t p-3 sm:p-4 sm:static sm:mx-0 sm:border-0 sm:p-0 flex justify-end">
         <Button type="submit" className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700" disabled={saving}>
           <Save className="mr-2 h-4 w-4" />
-          {saving ? 'Salvando...' : isEdit ? 'Salvar Alteracoes' : 'Cadastrar Paciente'}
+          {saving ? 'Salvando...' : isEdit ? 'Salvar Alterações' : 'Cadastrar Paciente'}
         </Button>
       </div>
     </form>

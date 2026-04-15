@@ -657,7 +657,7 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
     if (error) {
       toast.error('Erro ao excluir plano.')
     } else {
-      toast.success('Plano excluido.')
+      toast.success('Plano excluído.')
     }
   }
 

@@ -66,7 +66,7 @@ function ProfessionalDetailContent() {
     if (error) {
       toast.error('Erro ao excluir profissional. Pode ter agendamentos vinculados.')
     } else {
-      toast.success('Profissional excluido com sucesso.')
+      toast.success('Profissional excluído com sucesso.')
       router.push('/profissionais')
     }
     setDeleteOpen(false)

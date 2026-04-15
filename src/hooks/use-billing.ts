@@ -6,6 +6,7 @@ import { type MonthlyClosing, type Appointment, type TreatmentPlan } from '@/typ
 export interface BillingPlanRow {
   id: string
   created_at: string
+  patient_id: string
   patient_name: string
   professional_name: string
   professional_id: string
@@ -22,6 +23,7 @@ export interface BillingPlanRow {
 
 export interface BillingSessionRow {
   id: string
+  patient_id: string
   session_date: string
   session_number: number
   total_sessions: number
@@ -137,6 +139,7 @@ export function useBilling() {
       setPaidPlans(plans.map((p: any) => ({
         id: p.id,
         created_at: p.created_at,
+        patient_id: p.patient_id,
         patient_name: p.patient?.full_name ?? '-',
         professional_name: p.professional?.full_name ?? '-',
         professional_id: p.professional_id,
@@ -170,20 +173,22 @@ export function useBilling() {
 
       const allCompletedInMonth = sessionsInMonth.filter((s: any) => s.plan)
 
-      // Build set of completed session keys to remove matching appointments (avoid duplication)
+      // Build set of completed session keys (including appointment_type via plan.plan_type)
+      const typeMapSess: Record<string, string> = { treatment: 'tratamento', maintenance: 'manutencao', avaliacao: 'avaliacao' }
       const completedSessionKeys = new Set(
         allCompletedInMonth
           .map((s: any) => {
             const d = s.session_date?.split('T')[0] ?? null
-            return d ? `${s.patient_id}_${s.professional_id}_${d}` : null
+            const apptType = typeMapSess[s.plan?.plan_type] || 'tratamento'
+            return d ? `${s.patient_id}_${s.professional_id}_${apptType}_${d}` : null
           })
           .filter(Boolean)
       )
 
-      // Remove appointments covered by completed sessions
+      // Remove appointments covered by completed sessions (matching type + date)
       setAppointments((prev: Appointment[]) =>
         prev.filter((a: any) => {
-          const key = `${a.patient_id}_${a.professional_id}_${a.appointment_date}`
+          const key = `${a.patient_id}_${a.professional_id}_${a.appointment_type}_${a.appointment_date}`
           return !completedSessionKeys.has(key)
         })
       )
@@ -206,6 +211,7 @@ export function useBilling() {
 
         return {
           id: s.id,
+          patient_id: s.patient_id,
           session_date: s.session_date?.split('T')[0] ?? s.updated_at?.split('T')[0] ?? '',
           session_number: s.session_number,
           total_sessions: totalSessions,

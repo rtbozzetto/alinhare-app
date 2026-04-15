@@ -236,6 +236,16 @@ export function BatchScheduleDialog({
     let created = 0
     let errors = 0
 
+    // Fetch pending sessions (without session_date) for this plan
+    const { data: pendingSessions } = await supabase
+      .from('treatment_sessions')
+      .select('id')
+      .eq('plan_id', effectivePlan.id)
+      .eq('completed', false)
+      .is('session_date', null)
+      .order('session_number')
+
+    let sessionIdx = 0
     for (const item of preview) {
       const { error } = await supabase.from('appointments').insert({
         patient_id: effectivePatientId,
@@ -261,6 +271,14 @@ export function BatchScheduleDialog({
         errors++
       } else {
         created++
+        // Sync session_date with appointment_date for the next pending session
+        if (pendingSessions && sessionIdx < pendingSessions.length) {
+          await supabase
+            .from('treatment_sessions')
+            .update({ session_date: `${item.date}T12:00:00` })
+            .eq('id', pendingSessions[sessionIdx].id)
+          sessionIdx++
+        }
       }
     }
 

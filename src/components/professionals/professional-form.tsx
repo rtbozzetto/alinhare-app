@@ -219,7 +219,7 @@ export function ProfessionalForm({ professional }: ProfessionalFormProps) {
       <div className="flex justify-end">
         <Button type="submit" className="bg-teal-600 hover:bg-teal-700" disabled={saving}>
           <Save className="mr-2 h-4 w-4" />
-          {saving ? 'Salvando...' : isEdit ? 'Salvar Alteracoes' : 'Cadastrar Profissional'}
+          {saving ? 'Salvando...' : isEdit ? 'Salvar Alterações' : 'Cadastrar Profissional'}
         </Button>
       </div>
     </form>

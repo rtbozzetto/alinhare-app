@@ -496,7 +496,7 @@ export function AppointmentFormDialog({
     if (error) {
       toast.error('Erro ao excluir agendamento.')
     } else {
-      toast.success('Agendamento excluido.')
+      toast.success('Agendamento excluído.')
       onClose()
     }
   }

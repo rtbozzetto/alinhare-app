@@ -358,7 +358,14 @@ function BillingContent() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
                           {PAYMENT_STATUSES.map(s => (
-                            <DropdownMenuItem key={s.value} onClick={() => handleStatusChange('plan', plan.id, s.value, { professionalId: plan.professional_id })}>
+                            <DropdownMenuItem key={s.value} onClick={() => {
+                              const typeMap: Record<string, string> = { treatment: 'tratamento', maintenance: 'manutencao', avaliacao: 'avaliacao' }
+                              handleStatusChange('plan', plan.id, s.value, {
+                                patientId: plan.patient_id,
+                                professionalId: plan.professional_id,
+                                appointmentType: typeMap[plan.plan_type] || 'tratamento',
+                              })
+                            }}>
                               {s.label}
                             </DropdownMenuItem>
                           ))}
@@ -409,7 +416,15 @@ function BillingContent() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
                           {PAYMENT_STATUSES.map(s => (
-                            <DropdownMenuItem key={s.value} onClick={() => handleStatusChange('session', sess.id, s.value, { planId: (sess as any)._planId, professionalId: sess.professional_id })}>
+                            <DropdownMenuItem key={s.value} onClick={() => {
+                              const typeMap: Record<string, string> = { treatment: 'tratamento', maintenance: 'manutencao', avaliacao: 'avaliacao' }
+                              handleStatusChange('session', sess.id, s.value, {
+                                planId: (sess as any)._planId,
+                                patientId: sess.patient_id,
+                                professionalId: sess.professional_id,
+                                appointmentType: typeMap[sess.plan_type] || 'tratamento',
+                              })
+                            }}>
                               {s.label}
                             </DropdownMenuItem>
                           ))}

@@ -63,7 +63,7 @@ function PatientDetailContent() {
     if (error) {
       toast.error('Erro ao excluir paciente.')
     } else {
-      toast.success('Paciente excluido com sucesso.')
+      toast.success('Paciente excluído com sucesso.')
       router.push('/')
     }
     setDeleteOpen(false)
@@ -80,7 +80,7 @@ function PatientDetailContent() {
   if (!patient) {
     return (
       <div className="py-12 text-center text-muted-foreground">
-        Paciente nao encontrado.
+        Paciente não encontrado.
       </div>
     )
   }
@@ -101,8 +101,8 @@ function PatientDetailContent() {
               <DialogHeader>
                 <DialogTitle>Excluir paciente</DialogTitle>
                 <DialogDescription>
-                  Tem certeza que deseja excluir {patient.full_name}? Esta acao
-                  nao pode ser desfeita.
+                  Tem certeza que deseja excluir {patient.full_name}? Esta ação
+                  não pode ser desfeita.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>

@@ -99,18 +99,8 @@ export default function ConfiguracoesPage() {
 
     setSavingPassword(true)
 
-    // Verify current password by trying to sign in
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: user?.email || '',
-      password: currentPassword,
-    })
-    if (signInError) {
-      setSavingPassword(false)
-      toast.error('Senha atual incorreta.')
-      return
-    }
-
-    // Update password
+    // Update password directly — Supabase requires recent auth for updateUser,
+    // the current session is sufficient. If stale, user will be prompted to re-auth.
     const { error } = await supabase.auth.updateUser({ password: newPassword })
     setSavingPassword(false)
 

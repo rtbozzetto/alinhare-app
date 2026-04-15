@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { type PatientExam } from '@/types/database'
 import { Button } from '@/components/ui/button'
@@ -32,6 +32,11 @@ export function ExamsTab({ patientId }: ExamsTabProps) {
   const [selectedExam, setSelectedExam] = useState<PatientExam | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [analyzingId, setAnalyzingId] = useState<string | null>(null)
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
 
   const fetchExams = useCallback(async () => {
     setLoading(true)
@@ -47,7 +52,7 @@ export function ExamsTab({ patientId }: ExamsTabProps) {
         data.map(async (exam) => {
           const { data: signedData } = await supabase.storage
             .from('exam-files')
-            .createSignedUrl(exam.file_url, 3600)
+            .createSignedUrl(exam.file_url, 86400)
           return { ...exam, file_url: signedData?.signedUrl ?? exam.file_url }
         })
       )
@@ -137,12 +142,16 @@ export function ExamsTab({ patientId }: ExamsTabProps) {
           errMsg = err.error || errMsg
         } catch { /* ignore parse error */ }
         console.error('Analyze exam error:', errMsg)
-        toast.error(errMsg)
-        setAnalyzingId(null)
+        if (mountedRef.current) {
+          toast.error(errMsg)
+          setAnalyzingId(null)
+        }
         return
       }
 
       const result = await response.json()
+
+      if (!mountedRef.current) return
 
       // Update local state with analysis
       setExams(prev => prev.map(e =>
@@ -158,9 +167,9 @@ export function ExamsTab({ patientId }: ExamsTabProps) {
       setDetailOpen(true)
     } catch (err) {
       console.error('Analysis error:', err)
-      toast.error('Erro ao analisar exame.')
+      if (mountedRef.current) toast.error('Erro ao analisar exame.')
     }
-    setAnalyzingId(null)
+    if (mountedRef.current) setAnalyzingId(null)
   }
 
   function openDetail(exam: PatientExam) {
@@ -188,11 +197,11 @@ export function ExamsTab({ patientId }: ExamsTabProps) {
       <Card>
         <CardContent className="space-y-4 p-4">
           <div className="space-y-2">
-            <Label>Descricao do exame (opcional)</Label>
+            <Label>Descrição do exame (opcional)</Label>
             <Input
               value={description}
               onChange={e => setDescription(e.target.value)}
-              placeholder="Ex: Ressonancia lombar"
+              placeholder="Ex: Ressonância lombar"
             />
           </div>
           <div>

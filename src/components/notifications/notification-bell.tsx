@@ -72,7 +72,7 @@ export function NotificationBell() {
         <ScrollArea className="max-h-80">
           {notifications.length === 0 ? (
             <p className="p-4 text-center text-sm text-muted-foreground">
-              Nenhuma notificacao.
+              Nenhuma notificação.
             </p>
           ) : (
             notifications.map(n => (

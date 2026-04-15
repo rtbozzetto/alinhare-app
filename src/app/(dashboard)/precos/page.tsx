@@ -28,9 +28,9 @@ function PrecosContent() {
 
   const protocols: ProtocolKey[] = ['janaina', 'quiropraxistas']
   const categories: { key: PriceCategory; label: string }[] = [
-    { key: 'evaluation', label: 'Avaliacao' },
+    { key: 'evaluation', label: 'Avaliação' },
     { key: 'treatment', label: 'Tratamento' },
-    { key: 'maintenance', label: 'Manutencao' },
+    { key: 'maintenance', label: 'Manutenção' },
   ]
 
   function startEdit(item: PriceProtocol) {
