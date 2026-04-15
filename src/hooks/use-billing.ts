@@ -77,16 +77,10 @@ export function useBilling() {
 
       const typeMap: Record<string, string> = { treatment: 'tratamento', maintenance: 'manutencao', avaliacao: 'avaliacao' }
 
-      // For each patient+professional+type combo, count appointments in order to determine session number
-      const apptsByKey: Record<string, any[]> = {}
-      const sorted = [...data].sort((a: any, b: any) => a.appointment_date.localeCompare(b.appointment_date) || (a.appointment_time ?? '').localeCompare(b.appointment_time ?? ''))
-      for (const appt of sorted) {
-        const key = `${appt.patient_id}_${appt.professional_id}_${appt.appointment_type}`
-        if (!apptsByKey[key]) apptsByKey[key] = []
-        apptsByKey[key].push(appt)
-      }
-
-      const enriched = data.map((appt: any) => {
+      // Find matching plans for appointments
+      const planMatchMap = new Map<string, any>()
+      const keysToFetch = new Set<string>()
+      for (const appt of data) {
         const matchingPlan = plans?.find((p: any) =>
           p.patient_id === appt.patient_id &&
           p.professional_id === appt.professional_id &&
@@ -94,11 +88,42 @@ export function useBilling() {
         )
         if (matchingPlan) {
           const key = `${appt.patient_id}_${appt.professional_id}_${appt.appointment_type}`
-          const idx = apptsByKey[key]?.findIndex((a: any) => a.id === appt.id) ?? -1
+          planMatchMap.set(appt.id, matchingPlan)
+          keysToFetch.add(key)
+        }
+      }
+
+      // Fetch ALL appointments for matched plans (across all months) to determine global session number
+      const globalApptsByKey: Record<string, string[]> = {}
+      if (keysToFetch.size > 0) {
+        const patientIds = [...new Set([...keysToFetch].map(k => k.split('_')[0]))]
+        const { data: allAppts } = await supabase
+          .from('appointments')
+          .select('id, patient_id, professional_id, appointment_type, appointment_date, appointment_time')
+          .in('patient_id', patientIds)
+          .neq('status', 'cancelada')
+          .order('appointment_date')
+          .order('appointment_time')
+        if (allAppts) {
+          for (const a of allAppts) {
+            const key = `${a.patient_id}_${a.professional_id}_${a.appointment_type}`
+            if (keysToFetch.has(key)) {
+              if (!globalApptsByKey[key]) globalApptsByKey[key] = []
+              globalApptsByKey[key].push(a.id)
+            }
+          }
+        }
+      }
+
+      const enriched = data.map((appt: any) => {
+        const matchingPlan = planMatchMap.get(appt.id)
+        if (matchingPlan) {
+          const key = `${appt.patient_id}_${appt.professional_id}_${appt.appointment_type}`
+          const globalIdx = globalApptsByKey[key]?.indexOf(appt.id) ?? -1
           return {
             ...appt,
             _plan_name: matchingPlan.plan_name,
-            _session_number: idx + 1,
+            _session_number: globalIdx + 1,
             _total_sessions: matchingPlan.total_sessions,
           }
         }
