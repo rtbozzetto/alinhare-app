@@ -417,12 +417,15 @@ export function AppointmentFormDialog({
         // Always sync session_date on edit — match session by appointment's position in the plan
         if (form.appointment_date) {
           try {
-            // Find active plan for this patient+professional+type
+            toast.info(`[DEBUG] type=${form.appointment_type} patient=${form.patient_id?.slice(0,8)}`)
+
             const typeMap: Record<string, string> = { tratamento: 'treatment', manutencao: 'maintenance', avaliacao: 'avaliacao' }
             const planType = typeMap[form.appointment_type] ?? 'treatment'
-            const { data: planData } = await supabase
+
+            // Try with active=true first
+            let { data: planData } = await supabase
               .from('treatment_plans')
-              .select('id')
+              .select('id, active')
               .eq('patient_id', form.patient_id)
               .eq('professional_id', form.professional_id)
               .eq('plan_type', planType)
@@ -431,47 +434,60 @@ export function AppointmentFormDialog({
               .limit(1)
               .maybeSingle()
 
+            // Fallback: try any plan (active or inactive) of this type
             if (!planData) {
-              // No active plan — nothing to sync
-              toast.success('Agendamento atualizado!')
-              setConflictWarning(null)
-              setConflictConfirmed(false)
-              onClose()
-              return
+              const { data: anyPlan } = await supabase
+                .from('treatment_plans')
+                .select('id, active')
+                .eq('patient_id', form.patient_id)
+                .eq('professional_id', form.professional_id)
+                .eq('plan_type', planType)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle()
+              planData = anyPlan
+              if (planData) toast.info(`[DEBUG] plano inativo usado`)
             }
 
-            // Get all appointments for this patient+prof+type ordered by date
-            const { data: allAppts } = await supabase
-              .from('appointments')
-              .select('id, appointment_date, appointment_time')
-              .eq('patient_id', form.patient_id)
-              .eq('professional_id', form.professional_id)
-              .eq('appointment_type', form.appointment_type)
-              .neq('status', 'cancelada')
-              .order('appointment_date')
-              .order('appointment_time')
-
-            // Find position of current appointment
-            const idx = allAppts?.findIndex(a => a.id === appointment!.id) ?? -1
-            if (idx < 0) {
-              toast.warning('Agendamento não encontrado na lista do plano')
+            if (!planData) {
+              toast.warning(`[DEBUG] nenhum plano tipo=${planType} encontrado`)
             } else {
-              // Get sessions of this plan ordered by session_number
-              const { data: planSessions } = await supabase
-                .from('treatment_sessions')
-                .select('id, session_number')
-                .eq('plan_id', planData.id)
-                .order('session_number')
+              toast.info(`[DEBUG] plano ${planData.id.slice(0,8)} active=${planData.active}`)
 
-              // Match the Nth appointment to the Nth session
-              const targetSession = planSessions?.[idx]
-              if (targetSession) {
-                const { error: syncErr } = await supabase
+              const { data: allAppts } = await supabase
+                .from('appointments')
+                .select('id, appointment_date, appointment_time')
+                .eq('patient_id', form.patient_id)
+                .eq('professional_id', form.professional_id)
+                .eq('appointment_type', form.appointment_type)
+                .neq('status', 'cancelada')
+                .order('appointment_date')
+                .order('appointment_time')
+
+              const idx = allAppts?.findIndex(a => a.id === appointment!.id) ?? -1
+              toast.info(`[DEBUG] ${allAppts?.length ?? 0} appts, idx=${idx}`)
+
+              if (idx >= 0) {
+                const { data: planSessions } = await supabase
                   .from('treatment_sessions')
-                  .update({ session_date: `${form.appointment_date}T12:00:00` })
-                  .eq('id', targetSession.id)
-                if (syncErr) {
-                  toast.error(`Erro ao sincronizar sessão: ${syncErr.message}`)
+                  .select('id, session_number, session_date')
+                  .eq('plan_id', planData.id)
+                  .order('session_number')
+
+                const targetSession = planSessions?.[idx]
+                if (targetSession) {
+                  toast.info(`[DEBUG] atualizando sessão ${targetSession.session_number}`)
+                  const { error: syncErr } = await supabase
+                    .from('treatment_sessions')
+                    .update({ session_date: `${form.appointment_date}T12:00:00` })
+                    .eq('id', targetSession.id)
+                  if (syncErr) {
+                    toast.error(`Erro update sessão: ${syncErr.message}`)
+                  } else {
+                    toast.success(`✅ Sessão ${targetSession.session_number} → ${form.appointment_date}`)
+                  }
+                } else {
+                  toast.warning(`[DEBUG] sem sessão na posição ${idx}`)
                 }
               }
             }
