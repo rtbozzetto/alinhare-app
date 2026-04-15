@@ -408,11 +408,35 @@ export function AppointmentFormDialog({
 
     setSaving(true)
     if (isEdit) {
-      const { error } = await updateAppointment(appointment.id, payload)
+      const oldDate = appointment!.appointment_date
+      const { error } = await updateAppointment(appointment!.id, payload)
       setSaving(false)
       if (error) {
         toast.error(`Erro ao atualizar agendamento: ${error.message || 'erro desconhecido'}`)
       } else {
+        // Sync session_date if appointment_date changed
+        if (form.appointment_date && form.appointment_date !== oldDate) {
+          try {
+            // Find the session matching the old date and update it to the new date
+            const { data: matchingSessions } = await supabase
+              .from('treatment_sessions')
+              .select('id')
+              .eq('patient_id', form.patient_id)
+              .eq('professional_id', form.professional_id)
+              .gte('session_date', `${oldDate}T00:00:00`)
+              .lt('session_date', `${oldDate}T23:59:59`)
+              .limit(1)
+            if (matchingSessions && matchingSessions.length > 0) {
+              const { error: syncErr } = await supabase
+                .from('treatment_sessions')
+                .update({ session_date: `${form.appointment_date}T12:00:00` })
+                .eq('id', matchingSessions[0].id)
+              if (syncErr) console.error('Session date sync error:', syncErr)
+            }
+          } catch (syncError) {
+            console.error('Session date sync failed:', syncError)
+          }
+        }
         toast.success('Agendamento atualizado!')
         setConflictWarning(null)
         setConflictConfirmed(false)
