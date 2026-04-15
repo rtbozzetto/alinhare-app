@@ -417,21 +417,22 @@ export function AppointmentFormDialog({
         // Sync session_date if appointment_date changed
         if (form.appointment_date && form.appointment_date !== oldDate) {
           try {
-            // Find the session matching the old date and update it to the new date
-            const { data: matchingSessions } = await supabase
+            // Fetch all sessions for this patient+professional and filter by old date (string match)
+            const { data: allSessions } = await supabase
               .from('treatment_sessions')
-              .select('id')
+              .select('id, session_date')
               .eq('patient_id', form.patient_id)
               .eq('professional_id', form.professional_id)
-              .gte('session_date', `${oldDate}T00:00:00`)
-              .lt('session_date', `${oldDate}T23:59:59`)
-              .limit(1)
-            if (matchingSessions && matchingSessions.length > 0) {
+              .not('session_date', 'is', null)
+            const matchingSession = allSessions?.find((s: any) => s.session_date?.startsWith(oldDate))
+            if (matchingSession) {
               const { error: syncErr } = await supabase
                 .from('treatment_sessions')
                 .update({ session_date: `${form.appointment_date}T12:00:00` })
-                .eq('id', matchingSessions[0].id)
+                .eq('id', matchingSession.id)
               if (syncErr) console.error('Session date sync error:', syncErr)
+            } else {
+              console.warn('No matching session found for oldDate:', oldDate)
             }
           } catch (syncError) {
             console.error('Session date sync failed:', syncError)
