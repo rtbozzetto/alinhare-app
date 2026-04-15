@@ -414,18 +414,16 @@ export function AppointmentFormDialog({
       if (error) {
         toast.error(`Erro ao atualizar agendamento: ${error.message || 'erro desconhecido'}`)
       } else {
-        // Always sync session_date on edit — match session by appointment's position in the plan
+        // Sync session_date on edit — match session by appointment's position in the plan
         if (form.appointment_date) {
           try {
-            toast.info(`[DEBUG] type=${form.appointment_type} patient=${form.patient_id?.slice(0,8)}`)
-
             const typeMap: Record<string, string> = { tratamento: 'treatment', manutencao: 'maintenance', avaliacao: 'avaliacao' }
             const planType = typeMap[form.appointment_type] ?? 'treatment'
 
-            // Try with active=true first
+            // Try active plan first, fallback to any plan of this type
             let { data: planData } = await supabase
               .from('treatment_plans')
-              .select('id, active')
+              .select('id')
               .eq('patient_id', form.patient_id)
               .eq('professional_id', form.professional_id)
               .eq('plan_type', planType)
@@ -434,11 +432,10 @@ export function AppointmentFormDialog({
               .limit(1)
               .maybeSingle()
 
-            // Fallback: try any plan (active or inactive) of this type
             if (!planData) {
               const { data: anyPlan } = await supabase
                 .from('treatment_plans')
-                .select('id, active')
+                .select('id')
                 .eq('patient_id', form.patient_id)
                 .eq('professional_id', form.professional_id)
                 .eq('plan_type', planType)
@@ -446,17 +443,12 @@ export function AppointmentFormDialog({
                 .limit(1)
                 .maybeSingle()
               planData = anyPlan
-              if (planData) toast.info(`[DEBUG] plano inativo usado`)
             }
 
-            if (!planData) {
-              toast.warning(`[DEBUG] nenhum plano tipo=${planType} encontrado`)
-            } else {
-              toast.info(`[DEBUG] plano ${planData.id.slice(0,8)} active=${planData.active}`)
-
+            if (planData) {
               const { data: allAppts } = await supabase
                 .from('appointments')
-                .select('id, appointment_date, appointment_time')
+                .select('id')
                 .eq('patient_id', form.patient_id)
                 .eq('professional_id', form.professional_id)
                 .eq('appointment_type', form.appointment_type)
@@ -465,34 +457,32 @@ export function AppointmentFormDialog({
                 .order('appointment_time')
 
               const idx = allAppts?.findIndex(a => a.id === appointment!.id) ?? -1
-              toast.info(`[DEBUG] ${allAppts?.length ?? 0} appts, idx=${idx}`)
-
               if (idx >= 0) {
                 const { data: planSessions } = await supabase
                   .from('treatment_sessions')
-                  .select('id, session_number, session_date')
+                  .select('id')
                   .eq('plan_id', planData.id)
                   .order('session_number')
 
                 const targetSession = planSessions?.[idx]
                 if (targetSession) {
-                  toast.info(`[DEBUG] atualizando sessão ${targetSession.session_number}`)
-                  const { error: syncErr } = await supabase
+                  const { data: updatedRows, error: syncErr } = await supabase
                     .from('treatment_sessions')
                     .update({ session_date: `${form.appointment_date}T12:00:00` })
                     .eq('id', targetSession.id)
+                    .select()
                   if (syncErr) {
-                    toast.error(`Erro update sessão: ${syncErr.message}`)
+                    toast.error(`Erro update: ${syncErr.message}`)
+                  } else if (!updatedRows || updatedRows.length === 0) {
+                    toast.error('Update retornou 0 linhas (RLS?)')
                   } else {
-                    toast.success(`✅ Sessão ${targetSession.session_number} → ${form.appointment_date}`)
+                    toast.success(`✅ Sessão atualizada para ${form.appointment_date}`)
                   }
-                } else {
-                  toast.warning(`[DEBUG] sem sessão na posição ${idx}`)
                 }
               }
             }
-          } catch (syncError: any) {
-            toast.error(`Erro sync: ${syncError?.message || 'desconhecido'}`)
+          } catch (syncError) {
+            console.error('Session date sync failed:', syncError)
           }
         }
         toast.success('Agendamento atualizado!')
