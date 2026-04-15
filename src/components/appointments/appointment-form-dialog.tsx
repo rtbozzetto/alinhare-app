@@ -417,27 +417,55 @@ export function AppointmentFormDialog({
         // Always sync session_date on edit (handles both date changes and pre-existing mismatches)
         if (form.appointment_date) {
           try {
-            const { data: allSessions } = await supabase
+            const { data: allSessions, error: fetchErr } = await supabase
               .from('treatment_sessions')
-              .select('id, session_date')
+              .select('id, session_date, session_number, plan_id')
               .eq('patient_id', form.patient_id)
               .eq('professional_id', form.professional_id)
-              .not('session_date', 'is', null)
-            // Try to find a session matching either the old or new date
-            const matchingSession = allSessions?.find((s: any) =>
-              s.session_date?.startsWith(oldDate) || s.session_date?.startsWith(form.appointment_date)
-            )
+            if (fetchErr) {
+              toast.error(`Erro ao buscar sessões: ${fetchErr.message}`)
+            }
+
+            // Normalize date comparison using Date parsing (handles timezone variations)
+            const normalizeDate = (d: string | null): string | null => {
+              if (!d) return null
+              // Parse and extract local date portion in YYYY-MM-DD format
+              const parts = d.split('T')[0]
+              return parts
+            }
+
+            // Try matching by: (1) old date (2) new date (3) any session matching this appointment
+            let matchingSession = allSessions?.find((s: any) => {
+              const sDate = normalizeDate(s.session_date)
+              return sDate === oldDate || sDate === form.appointment_date
+            })
+
+            // Fallback: if no date match but there's an activePlan, use position-based match
+            if (!matchingSession && activePlan) {
+              // Find session by appointment's position within plan (e.g., first pending session)
+              const planSessions = allSessions?.filter((s: any) => s.plan_id === activePlan.id)
+                ?.sort((a: any, b: any) => a.session_number - b.session_number) ?? []
+              // Find session that matches by date or is the closest pending one
+              matchingSession = planSessions.find((s: any) =>
+                normalizeDate(s.session_date) === oldDate
+              ) || planSessions.find((s: any) => !s.session_date)
+            }
+
             if (matchingSession) {
               const { error: syncErr } = await supabase
                 .from('treatment_sessions')
                 .update({ session_date: `${form.appointment_date}T12:00:00` })
                 .eq('id', matchingSession.id)
-              if (syncErr) console.error('Session date sync error:', syncErr)
+              if (syncErr) {
+                toast.error(`Erro ao sincronizar sessão: ${syncErr.message}`)
+              } else {
+                toast.success('Sessão sincronizada!')
+              }
             } else {
-              console.warn('No matching session found for oldDate/newDate:', oldDate, form.appointment_date)
+              toast.warning(`Nenhuma sessão encontrada para ${oldDate}. Sessions: ${allSessions?.length ?? 0}`)
             }
-          } catch (syncError) {
-            console.error('Session date sync failed:', syncError)
+          } catch (syncError: any) {
+            toast.error(`Erro sync: ${syncError?.message || 'desconhecido'}`)
           }
         }
         toast.success('Agendamento atualizado!')
