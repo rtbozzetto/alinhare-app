@@ -93,24 +93,18 @@ export function useBilling() {
         }
       }
 
-      // Fetch ALL appointments for matched plans (across all months) to determine global session number
-      const globalApptsByKey: Record<string, string[]> = {}
-      if (keysToFetch.size > 0) {
-        const patientIds = [...new Set([...keysToFetch].map(k => k.split('_')[0]))]
-        const { data: allAppts } = await supabase
-          .from('appointments')
-          .select('id, patient_id, professional_id, appointment_type, appointment_date, appointment_time')
-          .in('patient_id', patientIds)
-          .neq('status', 'cancelada')
-          .order('appointment_date')
-          .order('appointment_time')
-        if (allAppts) {
-          for (const a of allAppts) {
-            const key = `${a.patient_id}_${a.professional_id}_${a.appointment_type}`
-            if (keysToFetch.has(key)) {
-              if (!globalApptsByKey[key]) globalApptsByKey[key] = []
-              globalApptsByKey[key].push(a.id)
-            }
+      // Fetch treatment_sessions for matched plans to get real session_number by date
+      const planIds = [...new Set([...planMatchMap.values()].map((p: any) => p.id))]
+      const sessionsByDate: Record<string, number> = {}
+      if (planIds.length > 0) {
+        const { data: sessions } = await supabase
+          .from('treatment_sessions')
+          .select('plan_id, session_number, session_date')
+          .in('plan_id', planIds)
+        if (sessions) {
+          for (const s of sessions) {
+            const d = s.session_date?.split('T')[0]
+            if (d) sessionsByDate[`${s.plan_id}_${d}`] = s.session_number
           }
         }
       }
@@ -118,12 +112,11 @@ export function useBilling() {
       const enriched = data.map((appt: any) => {
         const matchingPlan = planMatchMap.get(appt.id)
         if (matchingPlan) {
-          const key = `${appt.patient_id}_${appt.professional_id}_${appt.appointment_type}`
-          const globalIdx = globalApptsByKey[key]?.indexOf(appt.id) ?? -1
+          const sessionNum = sessionsByDate[`${matchingPlan.id}_${appt.appointment_date}`]
           return {
             ...appt,
             _plan_name: matchingPlan.plan_name,
-            _session_number: globalIdx + 1,
+            _session_number: sessionNum ?? null,
             _total_sessions: matchingPlan.total_sessions,
           }
         }

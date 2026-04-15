@@ -93,22 +93,18 @@ export default function AgendaPage() {
 
       if (matchedKeys.size === 0) { setSessionInfo({}); return }
 
-      // Fetch ALL appointments for matched plans to get global index
-      const { data: allAppts } = await supabase
-        .from('appointments')
-        .select('id, patient_id, professional_id, appointment_type, appointment_date, appointment_time')
-        .in('patient_id', patientIds)
-        .neq('status', 'cancelada')
-        .order('appointment_date')
-        .order('appointment_time')
-
-      const globalByKey: Record<string, string[]> = {}
-      if (allAppts) {
-        for (const a of allAppts) {
-          const key = `${a.patient_id}_${a.professional_id}_${a.appointment_type}`
-          if (matchedKeys.has(key)) {
-            if (!globalByKey[key]) globalByKey[key] = []
-            globalByKey[key].push(a.id)
+      // Fetch treatment_sessions for matched plans to get real session_number by date
+      const planIds = [...new Set([...apptPlanMap.values()].map((p: any) => p.id))]
+      const sessionsByDate: Record<string, number> = {}
+      if (planIds.length > 0) {
+        const { data: sessions } = await supabase
+          .from('treatment_sessions')
+          .select('plan_id, session_number, session_date')
+          .in('plan_id', planIds)
+        if (sessions) {
+          for (const s of sessions) {
+            const d = s.session_date?.split('T')[0]
+            if (d) sessionsByDate[`${s.plan_id}_${d}`] = s.session_number
           }
         }
       }
@@ -117,9 +113,8 @@ export default function AgendaPage() {
       for (const appt of appointments) {
         const plan = apptPlanMap.get(appt.id)
         if (plan) {
-          const key = `${appt.patient_id}_${appt.professional_id}_${appt.appointment_type}`
-          const idx = globalByKey[key]?.indexOf(appt.id) ?? -1
-          info[appt.id] = `${idx + 1}/${plan.total_sessions}`
+          const sessionNum = sessionsByDate[`${plan.id}_${appt.appointment_date}`]
+          if (sessionNum) info[appt.id] = `${sessionNum}/${plan.total_sessions}`
         }
       }
       setSessionInfo(info)
