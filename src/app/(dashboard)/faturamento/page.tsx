@@ -35,6 +35,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { ChevronLeft, ChevronRight, FileDown, Lock, Unlock, Trash2, MessageCircle } from 'lucide-react'
 import { formatCurrency, formatWhatsAppCobranca, getWhatsAppUrl } from '@/lib/utils'
 import { APPOINTMENT_TYPES, PAYMENT_STATUSES } from '@/lib/constants'
@@ -324,18 +330,22 @@ function BillingContent() {
                 <TableCell>
                   <div className="flex items-center gap-1">
                     {!isClosed ? (
-                      <Select value={plan.payment_status} onValueChange={(v) => handleStatusChange('plan', plan.id, v, { patientId: undefined, professionalId: plan.professional_id, appointmentType: undefined })}>
-                        <SelectTrigger className="h-7 w-auto min-w-[100px] text-xs border-0 bg-transparent px-1">
-                          <Badge variant={plan.payment_status === 'nao_pago' ? 'secondary' : 'default'}>
-                            {PAYMENT_STATUSES.find(s => s.value === plan.payment_status)?.label ?? plan.payment_status}
-                          </Badge>
-                        </SelectTrigger>
-                        <SelectContent>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button type="button" className="cursor-pointer">
+                            <Badge variant={plan.payment_status === 'nao_pago' ? 'secondary' : 'default'}>
+                              {PAYMENT_STATUSES.find(s => s.value === plan.payment_status)?.label ?? plan.payment_status}
+                            </Badge>
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
                           {PAYMENT_STATUSES.map(s => (
-                            <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                            <DropdownMenuItem key={s.value} onClick={() => handleStatusChange('plan', plan.id, s.value, { professionalId: plan.professional_id })}>
+                              {s.label}
+                            </DropdownMenuItem>
                           ))}
-                        </SelectContent>
-                      </Select>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     ) : (
                       <Badge variant={plan.payment_status === 'nao_pago' ? 'secondary' : 'default'}>
                         {PAYMENT_STATUSES.find(s => s.value === plan.payment_status)?.label ?? plan.payment_status}
@@ -371,18 +381,22 @@ function BillingContent() {
                 <TableCell>
                   <div className="flex items-center gap-1">
                     {!isClosed ? (
-                      <Select value={sess.payment_status} onValueChange={(v) => handleStatusChange('session', sess.id, v, { planId: (sess as any)._planId, patientId: undefined, professionalId: sess.professional_id, appointmentType: undefined })}>
-                        <SelectTrigger className="h-7 w-auto min-w-[100px] text-xs border-0 bg-transparent px-1">
-                          <Badge variant={sess.payment_status === 'nao_pago' ? 'secondary' : 'default'}>
-                            {PAYMENT_STATUSES.find(s => s.value === sess.payment_status)?.label ?? sess.payment_status}
-                          </Badge>
-                        </SelectTrigger>
-                        <SelectContent>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button type="button" className="cursor-pointer">
+                            <Badge variant={sess.payment_status === 'nao_pago' ? 'secondary' : 'default'}>
+                              {PAYMENT_STATUSES.find(s => s.value === sess.payment_status)?.label ?? sess.payment_status}
+                            </Badge>
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
                           {PAYMENT_STATUSES.map(s => (
-                            <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                            <DropdownMenuItem key={s.value} onClick={() => handleStatusChange('session', sess.id, s.value, { planId: (sess as any)._planId, professionalId: sess.professional_id })}>
+                              {s.label}
+                            </DropdownMenuItem>
                           ))}
-                        </SelectContent>
-                      </Select>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     ) : (
                       <Badge variant={sess.payment_status === 'nao_pago' ? 'secondary' : 'default'}>
                         {PAYMENT_STATUSES.find(s => s.value === sess.payment_status)?.label ?? sess.payment_status}
@@ -429,18 +443,22 @@ function BillingContent() {
                 <TableCell>
                   <div className="flex items-center gap-1">
                     {!isClosed ? (
-                      <Select value={appt.payment_status} onValueChange={(v) => handleStatusChange('appointment', appt.id, v, { patientId: appt.patient_id, professionalId: appt.professional_id, appointmentType: appt.appointment_type })}>
-                        <SelectTrigger className="h-7 w-auto min-w-[100px] text-xs border-0 bg-transparent px-1">
-                          <Badge variant={appt.payment_status === 'nao_pago' ? 'secondary' : 'default'}>
-                            {PAYMENT_STATUSES.find(s => s.value === appt.payment_status)?.label ?? appt.payment_status}
-                          </Badge>
-                        </SelectTrigger>
-                        <SelectContent>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button type="button" className="cursor-pointer">
+                            <Badge variant={appt.payment_status === 'nao_pago' ? 'secondary' : 'default'}>
+                              {PAYMENT_STATUSES.find(s => s.value === appt.payment_status)?.label ?? appt.payment_status}
+                            </Badge>
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
                           {PAYMENT_STATUSES.map(s => (
-                            <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                            <DropdownMenuItem key={s.value} onClick={() => handleStatusChange('appointment', appt.id, s.value, { patientId: appt.patient_id, professionalId: appt.professional_id, appointmentType: appt.appointment_type })}>
+                              {s.label}
+                            </DropdownMenuItem>
                           ))}
-                        </SelectContent>
-                      </Select>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     ) : (
                       <Badge variant={appt.payment_status === 'nao_pago' ? 'secondary' : 'default'}>
                         {PAYMENT_STATUSES.find(s => s.value === appt.payment_status)?.label ?? appt.payment_status}
