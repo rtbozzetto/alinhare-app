@@ -96,3 +96,15 @@ export function getWhatsAppUrl(phone: string, message: string): string {
   const fullNumber = digits.startsWith('55') ? digits : `55${digits}`
   return `https://wa.me/${fullNumber}?text=${encodeURIComponent(message)}`
 }
+
+export function formatWhatsAppCobranca(
+  patientName: string,
+  valor: number,
+  professionalName: string
+): string {
+  const isJanaina = professionalName?.toLowerCase().includes('janaina') ||
+                    professionalName?.toLowerCase().includes('janaína')
+  const pixKey = isJanaina ? '83696989053 (CPF)' : 'janabutafava@gmail.com (E-mail)'
+  const valorFormatado = formatCurrency(valor)
+  return `Olá, ${patientName}! Tudo bem?\nPassando para lembrar que você possui um pagamento em aberto na Alinhare no valor de ${valorFormatado}.\n\nPara sua comodidade, segue a chave PIX para pagamento:\n${pixKey}\n\nQualquer dúvida, estamos à disposição!`
+}

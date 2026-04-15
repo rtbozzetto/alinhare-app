@@ -35,8 +35,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { ChevronLeft, ChevronRight, FileDown, Lock, Unlock, Trash2 } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
+import { ChevronLeft, ChevronRight, FileDown, Lock, Unlock, Trash2, MessageCircle } from 'lucide-react'
+import { formatCurrency, formatWhatsAppCobranca, getWhatsAppUrl } from '@/lib/utils'
 import { APPOINTMENT_TYPES, PAYMENT_STATUSES } from '@/lib/constants'
 import { generateBillingPdf } from '@/lib/pdf'
 import { toast } from 'sonner'
@@ -53,7 +53,7 @@ function BillingContent() {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [filterProfId, setFilterProfId] = useState<string>('all')
 
-  const { appointments, paidPlans, completedSessions, closings, fetchAppointmentsByMonth, fetchClosings, closeMonth, reopenMonth, deleteAppointment, loading } =
+  const { appointments, paidPlans, completedSessions, closings, fetchAppointmentsByMonth, fetchClosings, closeMonth, reopenMonth, deleteAppointment, updatePaymentStatus, loading } =
     useBilling()
   const { activeProfessionals } = useProfessionals()
 
@@ -68,6 +68,25 @@ function BillingContent() {
     fetchAppointmentsByMonth(year, month)
     fetchClosings()
   }, [year, month, fetchAppointmentsByMonth, fetchClosings])
+
+  async function handleStatusChange(type: 'appointment' | 'plan' | 'session', id: string, newStatus: string, meta?: any) {
+    const { error } = await updatePaymentStatus(type, id, newStatus, meta)
+    if (error) {
+      toast.error('Erro ao atualizar status.')
+    } else {
+      toast.success('Status atualizado!')
+      fetchAppointmentsByMonth(year, month)
+    }
+  }
+
+  function handleWhatsAppCobranca(patientName: string, phone: string | undefined, valor: number, professionalName: string) {
+    if (!phone) {
+      toast.error('Paciente sem telefone cadastrado.')
+      return
+    }
+    const message = formatWhatsAppCobranca(patientName, valor, professionalName)
+    window.open(getWhatsAppUrl(phone, message), '_blank')
+  }
 
   const filteredAppointments = useMemo(() => {
     if (filterProfId === 'all') return appointments
@@ -303,9 +322,26 @@ function BillingContent() {
                 <TableCell>{formatCurrency(plan.commission_amount)}</TableCell>
                 <TableCell>{formatCurrency(plan.clinic_amount)}</TableCell>
                 <TableCell>
-                  <Badge variant="default">
-                    {PAYMENT_STATUSES.find(s => s.value === plan.payment_status)?.label ?? plan.payment_status}
-                  </Badge>
+                  <div className="flex items-center gap-1">
+                    {!isClosed ? (
+                      <Select value={plan.payment_status} onValueChange={(v) => handleStatusChange('plan', plan.id, v, { patientId: undefined, professionalId: plan.professional_id, appointmentType: undefined })}>
+                        <SelectTrigger className="h-7 w-auto min-w-[100px] text-xs border-0 bg-transparent px-1">
+                          <Badge variant={plan.payment_status === 'nao_pago' ? 'secondary' : 'default'}>
+                            {PAYMENT_STATUSES.find(s => s.value === plan.payment_status)?.label ?? plan.payment_status}
+                          </Badge>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PAYMENT_STATUSES.map(s => (
+                            <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge variant={plan.payment_status === 'nao_pago' ? 'secondary' : 'default'}>
+                        {PAYMENT_STATUSES.find(s => s.value === plan.payment_status)?.label ?? plan.payment_status}
+                      </Badge>
+                    )}
+                  </div>
                 </TableCell>
                 {!isClosed && <TableCell />}
               </TableRow>
@@ -333,9 +369,36 @@ function BillingContent() {
                 <TableCell>{formatCurrency(sess.commission_amount)}</TableCell>
                 <TableCell>{formatCurrency(sess.clinic_amount)}</TableCell>
                 <TableCell>
-                  <Badge variant={sess.payment_status === 'pago' || sess.payment_status === 'pago_pacote' ? 'default' : 'secondary'}>
-                    {PAYMENT_STATUSES.find(s => s.value === sess.payment_status)?.label ?? sess.payment_status}
-                  </Badge>
+                  <div className="flex items-center gap-1">
+                    {!isClosed ? (
+                      <Select value={sess.payment_status} onValueChange={(v) => handleStatusChange('session', sess.id, v, { planId: (sess as any)._planId, patientId: undefined, professionalId: sess.professional_id, appointmentType: undefined })}>
+                        <SelectTrigger className="h-7 w-auto min-w-[100px] text-xs border-0 bg-transparent px-1">
+                          <Badge variant={sess.payment_status === 'nao_pago' ? 'secondary' : 'default'}>
+                            {PAYMENT_STATUSES.find(s => s.value === sess.payment_status)?.label ?? sess.payment_status}
+                          </Badge>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PAYMENT_STATUSES.map(s => (
+                            <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge variant={sess.payment_status === 'nao_pago' ? 'secondary' : 'default'}>
+                        {PAYMENT_STATUSES.find(s => s.value === sess.payment_status)?.label ?? sess.payment_status}
+                      </Badge>
+                    )}
+                    {sess.payment_status === 'nao_pago' && (
+                      <button
+                        type="button"
+                        className="shrink-0 text-green-600 hover:text-green-800"
+                        title="Cobrar via WhatsApp"
+                        onClick={() => handleWhatsAppCobranca(sess.patient_name, (sess as any)._phone, sess.final_paid_amount || sess.price, sess.professional_name)}
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </TableCell>
                 {!isClosed && <TableCell />}
               </TableRow>
@@ -364,9 +427,36 @@ function BillingContent() {
                 <TableCell>{formatCurrency(appt.commission_amount)}</TableCell>
                 <TableCell>{formatCurrency(appt.clinic_amount)}</TableCell>
                 <TableCell>
-                  <Badge variant={appt.payment_status === 'pago' ? 'default' : 'secondary'}>
-                    {PAYMENT_STATUSES.find(s => s.value === appt.payment_status)?.label ?? appt.payment_status}
-                  </Badge>
+                  <div className="flex items-center gap-1">
+                    {!isClosed ? (
+                      <Select value={appt.payment_status} onValueChange={(v) => handleStatusChange('appointment', appt.id, v, { patientId: appt.patient_id, professionalId: appt.professional_id, appointmentType: appt.appointment_type })}>
+                        <SelectTrigger className="h-7 w-auto min-w-[100px] text-xs border-0 bg-transparent px-1">
+                          <Badge variant={appt.payment_status === 'nao_pago' ? 'secondary' : 'default'}>
+                            {PAYMENT_STATUSES.find(s => s.value === appt.payment_status)?.label ?? appt.payment_status}
+                          </Badge>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PAYMENT_STATUSES.map(s => (
+                            <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge variant={appt.payment_status === 'nao_pago' ? 'secondary' : 'default'}>
+                        {PAYMENT_STATUSES.find(s => s.value === appt.payment_status)?.label ?? appt.payment_status}
+                      </Badge>
+                    )}
+                    {appt.payment_status === 'nao_pago' && (
+                      <button
+                        type="button"
+                        className="shrink-0 text-green-600 hover:text-green-800"
+                        title="Cobrar via WhatsApp"
+                        onClick={() => handleWhatsAppCobranca(appt.patient?.full_name ?? 'Paciente', (appt as any).patient?.phone, appt.final_paid_amount || appt.custom_price || 0, appt.professional?.full_name ?? '')}
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </TableCell>
                 {!isClosed && (
                   <TableCell>

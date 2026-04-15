@@ -63,7 +63,7 @@ export function useBilling() {
     const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
     const { data } = await supabase
       .from('appointments')
-      .select('*, patient:patients(full_name), professional:professionals!professional_id(id, full_name)')
+      .select('*, patient:patients(full_name, phone), professional:professionals!professional_id(id, full_name)')
       .gte('appointment_date', startDate)
       .lte('appointment_date', endDate)
       .order('appointment_date')
@@ -110,7 +110,7 @@ export function useBilling() {
     // Also fetch paid treatment plans created in this month
     const { data: plans } = await supabase
       .from('treatment_plans')
-      .select('*, patient:patients(full_name), professional:professionals!professional_id(id, full_name)')
+      .select('*, patient:patients(full_name, phone), professional:professionals!professional_id(id, full_name)')
       .in('payment_status', ['pago', 'pago_pacote'])
       .gte('created_at', `${startDate}T00:00:00`)
       .lte('created_at', `${endDate}T23:59:59`)
@@ -138,7 +138,7 @@ export function useBilling() {
     // This avoids TIMESTAMPTZ vs DATE comparison issues in PostgREST filters
     const { data: sessionsData } = await supabase
       .from('treatment_sessions')
-      .select('*, plan:treatment_plans(*, patient:patients(full_name), professional:professionals!professional_id(id, full_name))')
+      .select('*, plan:treatment_plans(*, patient:patients(full_name, phone), professional:professionals!professional_id(id, full_name))')
       .eq('completed', true)
       .order('updated_at')
 
@@ -204,6 +204,8 @@ export function useBilling() {
           commission_amount: Math.round(perSessionCommission * 100) / 100,
           clinic_amount: Math.round(perSessionClinic * 100) / 100,
           lead_source: plan.lead_source,
+          _planId: s.plan_id,
+          _phone: plan.patient?.phone ?? null,
         }
       }))
     } else {
@@ -266,6 +268,57 @@ export function useBilling() {
     return { error }
   }
 
+  const updatePaymentStatus = async (
+    type: 'appointment' | 'plan' | 'session',
+    id: string,
+    newStatus: string,
+    meta?: { planId?: string; patientId?: string; professionalId?: string; appointmentType?: string }
+  ) => {
+    let error: any = null
+
+    if (type === 'appointment') {
+      const res = await supabase.from('appointments').update({ payment_status: newStatus }).eq('id', id)
+      error = res.error
+      // If pago_pacote, also update all appointments from the same plan
+      if (!error && newStatus === 'pago_pacote' && meta?.patientId && meta?.professionalId && meta?.appointmentType) {
+        await supabase
+          .from('appointments')
+          .update({ payment_status: 'pago_pacote' })
+          .eq('patient_id', meta.patientId)
+          .eq('professional_id', meta.professionalId)
+          .eq('appointment_type', meta.appointmentType)
+      }
+    } else if (type === 'plan') {
+      const res = await supabase.from('treatment_plans').update({ payment_status: newStatus }).eq('id', id)
+      error = res.error
+      // If pago_pacote, also update all appointments linked to this plan's sessions
+      if (!error && newStatus === 'pago_pacote' && meta?.patientId && meta?.professionalId && meta?.appointmentType) {
+        await supabase
+          .from('appointments')
+          .update({ payment_status: 'pago_pacote' })
+          .eq('patient_id', meta.patientId)
+          .eq('professional_id', meta.professionalId)
+          .eq('appointment_type', meta.appointmentType)
+      }
+    } else if (type === 'session') {
+      // Sessions inherit from plan — update the plan
+      if (meta?.planId) {
+        const res = await supabase.from('treatment_plans').update({ payment_status: newStatus }).eq('id', meta.planId)
+        error = res.error
+        if (!error && newStatus === 'pago_pacote' && meta?.patientId && meta?.professionalId && meta?.appointmentType) {
+          await supabase
+            .from('appointments')
+            .update({ payment_status: 'pago_pacote' })
+            .eq('patient_id', meta.patientId)
+            .eq('professional_id', meta.professionalId)
+            .eq('appointment_type', meta.appointmentType)
+        }
+      }
+    }
+
+    return { error }
+  }
+
   return {
     closings,
     appointments,
@@ -277,5 +330,6 @@ export function useBilling() {
     closeMonth,
     reopenMonth,
     deleteAppointment,
+    updatePaymentStatus,
   }
 }
