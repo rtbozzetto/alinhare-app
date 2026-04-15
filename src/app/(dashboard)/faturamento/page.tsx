@@ -58,6 +58,7 @@ export default function FaturamentoPage() {
 function BillingContent() {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [filterProfId, setFilterProfId] = useState<string>('all')
+  const [filterPayStatus, setFilterPayStatus] = useState<string>('all')
 
   const { appointments, paidPlans, completedSessions, closings, fetchAppointmentsByMonth, fetchClosings, closeMonth, reopenMonth, deleteAppointment, updatePaymentStatus, loading } =
     useBilling()
@@ -95,19 +96,25 @@ function BillingContent() {
   }
 
   const filteredAppointments = useMemo(() => {
-    if (filterProfId === 'all') return appointments
-    return appointments.filter(a => a.professional_id === filterProfId)
-  }, [appointments, filterProfId])
+    let result = appointments
+    if (filterProfId !== 'all') result = result.filter(a => a.professional_id === filterProfId)
+    if (filterPayStatus !== 'all') result = result.filter(a => a.payment_status === filterPayStatus)
+    return result
+  }, [appointments, filterProfId, filterPayStatus])
 
   const filteredPlans = useMemo(() => {
-    if (filterProfId === 'all') return paidPlans
-    return paidPlans.filter(p => p.professional_id === filterProfId)
-  }, [paidPlans, filterProfId])
+    let result = paidPlans
+    if (filterProfId !== 'all') result = result.filter(p => p.professional_id === filterProfId)
+    if (filterPayStatus !== 'all') result = result.filter(p => p.payment_status === filterPayStatus)
+    return result
+  }, [paidPlans, filterProfId, filterPayStatus])
 
   const filteredSessions = useMemo(() => {
-    if (filterProfId === 'all') return completedSessions
-    return completedSessions.filter(s => s.professional_id === filterProfId)
-  }, [completedSessions, filterProfId])
+    let result = completedSessions
+    if (filterProfId !== 'all') result = result.filter(s => s.professional_id === filterProfId)
+    if (filterPayStatus !== 'all') result = result.filter(s => s.payment_status === filterPayStatus)
+    return result
+  }, [completedSessions, filterProfId, filterPayStatus])
 
   const totals = useMemo(() => {
     const apptBruto = filteredAppointments.reduce((sum, a) => sum + (a.custom_price ?? 0), 0)
@@ -195,6 +202,17 @@ function BillingContent() {
                 <SelectItem key={p.id} value={p.id}>
                   {p.full_name}
                 </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterPayStatus} onValueChange={(value: string) => setFilterPayStatus(value)}>
+            <SelectTrigger className="w-32 sm:w-40">
+              <SelectValue placeholder="Pagamento" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {PAYMENT_STATUSES.map(s => (
+                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
