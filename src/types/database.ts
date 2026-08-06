@@ -122,6 +122,35 @@ export interface PartnerCompany {
   updated_at: string
 }
 
+export interface ClinicSettings {
+  id: string
+  emitter_name: string
+  emitter_document: string
+  emitter_address: string | null
+  emitter_city: string | null
+  signature_url: string | null
+  updated_at: string
+}
+
+export interface Receipt {
+  id: string
+  patient_id: string | null
+  professional_id: string | null
+  payer_name: string
+  payer_cpf: string
+  amount: number
+  payment_method: string
+  description: string
+  issued_at: string
+  city: string | null
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  // Join fields
+  patient?: Pick<Patient, 'full_name'>
+  professional?: Pick<Professional, 'full_name'>
+}
+
 export interface PatientPhoto {
   id: string
   session_id: string

@@ -10,6 +10,7 @@ import { TreatmentPlansTab } from '@/components/patients/treatment-plans-tab'
 import { SessionsTab } from '@/components/patients/sessions-tab'
 import { PhotosTab } from '@/components/patients/photos-tab'
 import { ExamsTab } from '@/components/patients/exams-tab'
+import { ReceiptsTab } from '@/components/patients/receipts-tab'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import {
@@ -132,6 +133,7 @@ function PatientDetailContent() {
           <TabsTrigger value="sessoes" className="text-xs sm:text-sm">Sessoes</TabsTrigger>
           <TabsTrigger value="fotos" className="text-xs sm:text-sm">Fotos</TabsTrigger>
           <TabsTrigger value="exames" className="text-xs sm:text-sm">Exames</TabsTrigger>
+          <TabsTrigger value="recibos" className="text-xs sm:text-sm">Recibos</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dados">
@@ -164,6 +166,10 @@ function PatientDetailContent() {
 
         <TabsContent value="exames">
           <ExamsTab patientId={patientId} />
+        </TabsContent>
+
+        <TabsContent value="recibos">
+          <ReceiptsTab patientId={patientId} patientName={patient?.full_name} />
         </TabsContent>
       </Tabs>
     </div>

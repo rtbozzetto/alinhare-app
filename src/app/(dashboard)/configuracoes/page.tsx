@@ -1,21 +1,79 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/use-auth'
+import { useUserRole } from '@/hooks/use-user-role'
+import { useClinicSettings } from '@/hooks/use-clinic-settings'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Eye, EyeOff, Save, LogOut, Mail, Lock, User } from 'lucide-react'
+import { Eye, EyeOff, Save, LogOut, Mail, Lock, User, FileText, Upload, Trash2 } from 'lucide-react'
 import { formatPhone, validatePhone } from '@/lib/utils'
 import { toast } from 'sonner'
 
 export default function ConfiguracoesPage() {
   const { user, signOut } = useAuth()
+  const { isAdmin } = useUserRole()
   const router = useRouter()
   const supabase = createClient()
+  const { settings: clinicSettings, signatureDataUrl, updateSettings: updateClinicSettings, uploadSignature, removeSignature } = useClinicSettings()
+
+  // Clinic settings / receipt data
+  const [emitterName, setEmitterName] = useState('')
+  const [emitterDoc, setEmitterDoc] = useState('')
+  const [emitterAddress, setEmitterAddress] = useState('')
+  const [emitterCity, setEmitterCity] = useState('')
+  const [savingClinic, setSavingClinic] = useState(false)
+  const [uploadingSig, setUploadingSig] = useState(false)
+  const signatureInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (clinicSettings) {
+      setEmitterName(clinicSettings.emitter_name || '')
+      setEmitterDoc(clinicSettings.emitter_document || '')
+      setEmitterAddress(clinicSettings.emitter_address || '')
+      setEmitterCity(clinicSettings.emitter_city || '')
+    }
+  }, [clinicSettings])
+
+  async function handleSaveClinic(e: React.FormEvent) {
+    e.preventDefault()
+    if (!emitterName.trim()) {
+      toast.error('Informe o nome do emissor.')
+      return
+    }
+    setSavingClinic(true)
+    const { error } = await updateClinicSettings({
+      emitter_name: emitterName.trim(),
+      emitter_document: emitterDoc.replace(/\D/g, ''),
+      emitter_address: emitterAddress.trim() || null,
+      emitter_city: emitterCity.trim() || null,
+    })
+    setSavingClinic(false)
+    if (error) toast.error('Erro ao salvar. Verifique as permissões.')
+    else toast.success('Dados salvos!')
+  }
+
+  async function handleSignatureUpload(file: File) {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Envie uma imagem (PNG/JPG).')
+      return
+    }
+    setUploadingSig(true)
+    const { error } = await uploadSignature(file)
+    setUploadingSig(false)
+    if (error) toast.error('Erro ao enviar assinatura.')
+    else toast.success('Assinatura salva!')
+  }
+
+  async function handleRemoveSignature() {
+    const { error } = await removeSignature()
+    if (error) toast.error('Erro ao remover.')
+    else toast.success('Assinatura removida.')
+  }
 
   // Profile state
   const [profileName, setProfileName] = useState('')
@@ -323,6 +381,127 @@ export default function ConfiguracoesPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Dados para Recibo (admin only) */}
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-teal-600" />
+              <CardTitle className="text-lg">Dados para Recibo</CardTitle>
+            </div>
+            <CardDescription>
+              Informações do emissor e assinatura usadas nos recibos emitidos.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSaveClinic} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="emitter_name">Nome do emissor</Label>
+                <Input
+                  id="emitter_name"
+                  value={emitterName}
+                  onChange={e => setEmitterName(e.target.value)}
+                  placeholder="Ex: Janaína Butafava"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="emitter_doc">CPF ou CNPJ</Label>
+                <Input
+                  id="emitter_doc"
+                  value={emitterDoc}
+                  onChange={e => setEmitterDoc(e.target.value)}
+                  placeholder="000.000.000-00"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="emitter_address">Endereço (opcional)</Label>
+                <Input
+                  id="emitter_address"
+                  value={emitterAddress}
+                  onChange={e => setEmitterAddress(e.target.value)}
+                  placeholder="Rua, número, bairro"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="emitter_city">Cidade</Label>
+                <Input
+                  id="emitter_city"
+                  value={emitterCity}
+                  onChange={e => setEmitterCity(e.target.value)}
+                  placeholder="São Paulo"
+                />
+              </div>
+
+              <div className="space-y-2 pt-2 border-t">
+                <Label>Assinatura (imagem PNG/JPG)</Label>
+                <p className="text-xs text-muted-foreground">
+                  Tire uma foto da assinatura em fundo branco. Ao clicar em enviar, você pode escolher da galeria.
+                </p>
+                {signatureDataUrl ? (
+                  <div className="space-y-2">
+                    <div className="rounded-lg border bg-white p-3 flex justify-center">
+                      <img src={signatureDataUrl} alt="Assinatura" className="max-h-24" />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => signatureInputRef.current?.click()}
+                        disabled={uploadingSig}
+                      >
+                        <Upload className="mr-2 h-4 w-4" />
+                        Substituir
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-red-600 border-red-200 hover:bg-red-50"
+                        onClick={handleRemoveSignature}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Remover
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => signatureInputRef.current?.click()}
+                    disabled={uploadingSig}
+                  >
+                    <Upload className="mr-2 h-4 w-4" />
+                    {uploadingSig ? 'Enviando...' : 'Enviar assinatura'}
+                  </Button>
+                )}
+                <input
+                  ref={signatureInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={e => {
+                    const f = e.target.files?.[0]
+                    if (f) handleSignatureUpload(f)
+                    e.target.value = ''
+                  }}
+                />
+              </div>
+
+              <Button
+                type="submit"
+                className="bg-teal-600 hover:bg-teal-700"
+                disabled={savingClinic}
+              >
+                <Save className="mr-2 h-4 w-4" />
+                {savingClinic ? 'Salvando...' : 'Salvar dados do recibo'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Sign Out */}
       <Card>

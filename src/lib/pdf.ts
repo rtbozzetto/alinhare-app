@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf'
 import { CLINIC_INFO, APPOINTMENT_TYPES, PAYMENT_STATUSES } from '@/lib/constants'
 import { formatCurrency } from '@/lib/utils'
+import { numberToWordsBR } from '@/lib/number-to-words'
 import { type Appointment } from '@/types/database'
 import { type BillingPlanRow, type BillingSessionRow } from '@/hooks/use-billing'
 
@@ -193,3 +194,124 @@ export function generateBillingPdf(
 
   doc.save(`faturamento-${professionalName.replace(/\s/g, '_')}-${referenceMonth}.pdf`)
 }
+
+// ═══════════════════════════════════════════════════════════════
+// RECIBO
+// ═══════════════════════════════════════════════════════════════
+
+export interface ReceiptPdfData {
+  payerName: string
+  payerCpf: string
+  amount: number
+  paymentMethod: string
+  description: string
+  issuedAt: string // YYYY-MM-DD
+  city: string
+  emitterName: string
+  emitterDocument: string
+  emitterAddress?: string
+  emitterCity?: string
+  signatureDataUrl?: string | null
+}
+
+function formatCpfCnpj(v: string): string {
+  const d = (v || '').replace(/\D/g, '')
+  if (d.length === 11) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9, 11)}`
+  if (d.length === 14) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12, 14)}`
+  return v
+}
+
+function formatDatePtBR(iso: string): string {
+  if (!iso) return ''
+  const d = new Date(iso + 'T12:00:00')
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+}
+
+/**
+ * Retorna o Blob do PDF (não salva). Use para preview ou envio.
+ */
+export function buildReceiptPdfBlob(data: ReceiptPdfData): Blob {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const pageWidth = doc.internal.pageSize.width
+  const marginX = 20
+  const contentWidth = pageWidth - marginX * 2
+  let y = 30
+
+  // Título
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(22)
+  doc.text('RECIBO', pageWidth / 2, y, { align: 'center' })
+
+  y += 6
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(12)
+  doc.text(`Valor: ${formatCurrency(data.amount)}`, pageWidth / 2, y, { align: 'center' })
+
+  y += 15
+
+  // Corpo do recibo
+  doc.setFontSize(11)
+  const valorExtenso = numberToWordsBR(data.amount)
+  const body =
+    `Recebi de ${data.payerName}, CPF ${formatCpfCnpj(data.payerCpf)}, ` +
+    `a importância de ${formatCurrency(data.amount)} (${valorExtenso}), ` +
+    `referente a ${data.description}. ` +
+    `Forma de pagamento: ${data.paymentMethod}. ` +
+    `Para maior clareza, firmo o presente recibo.`
+
+  const lines = doc.splitTextToSize(body, contentWidth)
+  doc.text(lines, marginX, y, { align: 'justify', maxWidth: contentWidth })
+  y += lines.length * 6 + 10
+
+  // Local e data
+  doc.text(`${data.city || data.emitterCity || 'São Paulo'}, ${formatDatePtBR(data.issuedAt)}.`, marginX, y)
+  y += 30
+
+  // Assinatura
+  const signX = marginX + contentWidth / 2
+  if (data.signatureDataUrl) {
+    try {
+      // Assinatura: 60mm x 22mm centralizada
+      doc.addImage(data.signatureDataUrl, 'PNG', signX - 30, y - 22, 60, 22)
+    } catch (err) {
+      console.error('Signature draw error:', err)
+    }
+  }
+  // Linha da assinatura
+  doc.setLineWidth(0.3)
+  doc.line(signX - 40, y, signX + 40, y)
+  y += 5
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'bold')
+  doc.text(data.emitterName, signX, y, { align: 'center' })
+  y += 5
+  doc.setFont('helvetica', 'normal')
+  if (data.emitterDocument) {
+    doc.text(`CPF: ${formatCpfCnpj(data.emitterDocument)}`, signX, y, { align: 'center' })
+    y += 5
+  }
+  if (data.emitterAddress) {
+    doc.setFontSize(9)
+    doc.text(data.emitterAddress, signX, y, { align: 'center' })
+  }
+
+  return doc.output('blob')
+}
+
+export function generateReceiptPdf(data: ReceiptPdfData): void {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  // Rebuild inline (jsPDF.save uses instance state)
+  const blob = buildReceiptPdfBlob(data)
+  const url = URL.createObjectURL(blob)
+  const filename = `recibo-${data.payerName.replace(/\s/g, '_')}-${data.issuedAt}.pdf`
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  // unused doc silences linter
+  void doc
+}
+
