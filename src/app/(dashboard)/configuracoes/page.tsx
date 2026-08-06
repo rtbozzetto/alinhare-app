@@ -443,6 +443,11 @@ export default function ConfiguracoesPage() {
                     <div className="rounded-lg border bg-white p-3 flex justify-center">
                       <img src={signatureDataUrl} alt="Assinatura" className="max-h-24" />
                     </div>
+                    {!clinicSettings?.signature_url && (
+                      <p className="text-xs text-teal-700">
+                        Assinatura padrão da Janaína carregada. Você pode enviar outra para substituir.
+                      </p>
+                    )}
                     <div className="flex gap-2">
                       <Button
                         type="button"
@@ -454,16 +459,18 @@ export default function ConfiguracoesPage() {
                         <Upload className="mr-2 h-4 w-4" />
                         Substituir
                       </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="text-red-600 border-red-200 hover:bg-red-50"
-                        onClick={handleRemoveSignature}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Remover
-                      </Button>
+                      {clinicSettings?.signature_url && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 border-red-200 hover:bg-red-50"
+                          onClick={handleRemoveSignature}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Remover
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ) : (

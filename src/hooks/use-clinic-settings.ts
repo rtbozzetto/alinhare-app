@@ -19,28 +19,38 @@ export function useClinicSettings() {
       .maybeSingle()
     if (!error) setSettings(data)
 
-    // Also fetch signature as data URL for use in PDF
+    // Fetch signature as data URL for use in PDF
+    // Priority: user-uploaded signature > default bundled signature
+    const fetchAsDataUrl = async (url: string): Promise<string | null> => {
+      try {
+        const res = await fetch(url)
+        const blob = await res.blob()
+        return await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onloadend = () => resolve(reader.result as string)
+          reader.onerror = reject
+          reader.readAsDataURL(blob)
+        })
+      } catch (err) {
+        console.error('Failed to load signature:', err)
+        return null
+      }
+    }
+
     if (data?.signature_url) {
       const { data: signed } = await supabase.storage
         .from('signatures')
         .createSignedUrl(data.signature_url, 3600)
       if (signed?.signedUrl) {
-        try {
-          const res = await fetch(signed.signedUrl)
-          const blob = await res.blob()
-          const dataUrl = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader()
-            reader.onloadend = () => resolve(reader.result as string)
-            reader.onerror = reject
-            reader.readAsDataURL(blob)
-          })
-          setSignatureDataUrl(dataUrl)
-        } catch (err) {
-          console.error('Failed to fetch signature:', err)
-        }
+        const url = await fetchAsDataUrl(signed.signedUrl)
+        setSignatureDataUrl(url)
+      } else {
+        setSignatureDataUrl(null)
       }
     } else {
-      setSignatureDataUrl(null)
+      // Fallback: bundled default signature (Janaína)
+      const url = await fetchAsDataUrl('/default-signature.png')
+      setSignatureDataUrl(url)
     }
     setLoading(false)
   }, [supabase])

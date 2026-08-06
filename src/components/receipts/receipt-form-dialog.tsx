@@ -233,8 +233,8 @@ export function ReceiptFormDialog({
             </p>
           )}
           {!signatureDataUrl && (
-            <p className="rounded-md border border-blue-200 bg-blue-50 p-2 text-xs text-blue-800">
-              ℹ️ Sem assinatura cadastrada — o recibo será gerado com espaço em branco para assinar. Envie sua assinatura em Configurações.
+            <p className="rounded-md border border-orange-200 bg-orange-50 p-2 text-xs text-orange-800">
+              ⚠ Assinatura não carregada. Verifique em Configurações.
             </p>
           )}
         </div>
