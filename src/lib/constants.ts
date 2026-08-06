@@ -104,13 +104,13 @@ export const DEFAULT_PRICE_TABLES = {
     evaluation: 400,
     treatment: [
       { name: 'Sessão Avulsa', sessions: 1, price: 350 },
-      { name: 'Protocolo Recomendado', sessions: 6, price: 1800, recommended: true },
-      { name: 'Protocolo Intensivo', sessions: 8, price: 2240 },
+      { name: 'Protocolo Essencial', sessions: 4, price: 1800, recommended: true },
+      { name: 'Protocolo Intensivo', sessions: 6, price: 2240 },
     ],
     maintenance: [
       { name: 'Sessão Avulsa', sessions: 1, price: 350 },
-      { name: 'Manutenção Essencial', sessions: 2, price: 610, recommended: true },
-      { name: 'Manutenção Intensivo', sessions: 4, price: 1200 },
+      { name: 'Protocolo Essencial', sessions: 4, price: 610, recommended: true },
+      { name: 'Protocolo Intensivo', sessions: 6, price: 1200 },
     ],
   },
   quiropraxistas: {
@@ -118,13 +118,13 @@ export const DEFAULT_PRICE_TABLES = {
     evaluation: 320,
     treatment: [
       { name: 'Sessão Avulsa', sessions: 1, price: 290 },
-      { name: 'Protocolo Recomendado', sessions: 6, price: 1560, recommended: true },
-      { name: 'Protocolo Intensivo', sessions: 8, price: 1920 },
+      { name: 'Protocolo Essencial', sessions: 4, price: 1560, recommended: true },
+      { name: 'Protocolo Intensivo', sessions: 6, price: 1920 },
     ],
     maintenance: [
       { name: 'Sessão Avulsa', sessions: 1, price: 290 },
-      { name: 'Manutenção Essencial', sessions: 2, price: 510, recommended: true },
-      { name: 'Manutenção Intensivo', sessions: 4, price: 970 },
+      { name: 'Protocolo Essencial', sessions: 4, price: 510, recommended: true },
+      { name: 'Protocolo Intensivo', sessions: 6, price: 970 },
     ],
   },
 } as const
