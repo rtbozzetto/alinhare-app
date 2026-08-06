@@ -23,6 +23,7 @@ export default function ParceriasPage() {
 }
 
 interface LeadSummary {
+  outros: { patients: number; revenue: number }
   midiaDigital: { patients: number; revenue: number }
   parceria: { patients: number; revenue: number }
   perCompany: { companyId: string; companyName: string; patients: number; revenue: number }[]
@@ -34,6 +35,7 @@ function ParceriasContent() {
   const [saving, setSaving] = useState(false)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [summary, setSummary] = useState<LeadSummary>({
+    outros: { patients: 0, revenue: 0 },
     midiaDigital: { patients: 0, revenue: 0 },
     parceria: { patients: 0, revenue: 0 },
     perCompany: [],
@@ -82,6 +84,8 @@ function ParceriasContent() {
     const paidPlanPatients = new Set(plans.filter(p => p.payment_status === 'pago_pacote').map(p => p.patient_id))
     const filteredAppts = appts.filter(a => !(a.payment_status === 'pago_pacote' && paidPlanPatients.has(a.patient_id)))
 
+    const outrosPatients = new Set<string>()
+    let outrosRevenue = 0
     const midiaPatients = new Set<string>()
     let midiaRevenue = 0
     const parceriaPatients = new Set<string>()
@@ -90,10 +94,12 @@ function ParceriasContent() {
 
     const process = (row: Row) => {
       const amt = Number(row.final_paid_amount ?? 0)
-      if (row.lead_subtype === 'midia_digital') {
+      // Treat null lead_subtype as 'outros' for backward compat with older records
+      const subtype = row.lead_subtype ?? 'outros'
+      if (subtype === 'midia_digital') {
         midiaPatients.add(row.patient_id)
         midiaRevenue += amt
-      } else if (row.lead_subtype === 'parceria') {
+      } else if (subtype === 'parceria') {
         parceriaPatients.add(row.patient_id)
         parceriaRevenue += amt
         if (row.lead_company_id) {
@@ -103,6 +109,9 @@ function ParceriasContent() {
           perCompanyMap[row.lead_company_id].patients.add(row.patient_id)
           perCompanyMap[row.lead_company_id].revenue += amt
         }
+      } else {
+        outrosPatients.add(row.patient_id)
+        outrosRevenue += amt
       }
     }
 
@@ -117,6 +126,7 @@ function ParceriasContent() {
     })).sort((a, b) => b.revenue - a.revenue)
 
     setSummary({
+      outros: { patients: outrosPatients.size, revenue: outrosRevenue },
       midiaDigital: { patients: midiaPatients.size, revenue: midiaRevenue },
       parceria: { patients: parceriaPatients.size, revenue: parceriaRevenue },
       perCompany,
@@ -235,7 +245,12 @@ function ParceriasContent() {
             </div>
           ) : (
             <>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <SummaryCard
+                  title="Outros"
+                  patients={summary.outros.patients}
+                  revenue={summary.outros.revenue}
+                />
                 <SummaryCard
                   title="Mídia Digital"
                   patients={summary.midiaDigital.patients}

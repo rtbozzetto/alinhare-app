@@ -37,6 +37,7 @@ export const LEAD_SOURCES = [
 
 // Lead subtypes (when lead_source === 'clinica')
 export const LEAD_SUBTYPES = [
+  { value: 'outros', label: 'Outros' },
   { value: 'midia_digital', label: 'Mídia Digital' },
   { value: 'parceria', label: 'Parceria' },
 ] as const

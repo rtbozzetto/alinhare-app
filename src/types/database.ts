@@ -61,7 +61,7 @@ export interface TreatmentPlan {
   final_paid_amount: number
   lead_source: 'clinica' | 'profissional'
   lead_professional_id: string | null
-  lead_subtype: 'midia_digital' | 'parceria' | null
+  lead_subtype: 'outros' | 'midia_digital' | 'parceria' | null
   lead_company_id: string | null
   commission_percentage: number
   commission_amount: number
@@ -101,7 +101,7 @@ export interface Appointment {
   final_paid_amount: number
   lead_source: 'clinica' | 'profissional'
   lead_professional_id: string | null
-  lead_subtype: 'midia_digital' | 'parceria' | null
+  lead_subtype: 'outros' | 'midia_digital' | 'parceria' | null
   lead_company_id: string | null
   payment_method: 'dinheiro' | 'pix' | 'cartao'
   commission_percentage: number

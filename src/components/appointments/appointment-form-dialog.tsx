@@ -890,7 +890,7 @@ export function AppointmentFormDialog({
                       updateField('lead_subtype', null)
                       updateField('lead_company_id', null)
                     } else {
-                      if (!form.lead_subtype) updateField('lead_subtype', 'midia_digital')
+                      if (!form.lead_subtype) updateField('lead_subtype', 'outros')
                     }
                   }}
                 >
@@ -911,7 +911,7 @@ export function AppointmentFormDialog({
                 <div className="space-y-2">
                   <Label>Categoria</Label>
                   <Select
-                    value={form.lead_subtype ?? 'midia_digital'}
+                    value={form.lead_subtype ?? 'outros'}
                     onValueChange={(value: string) => {
                       updateField('lead_subtype', value)
                       if (value !== 'parceria') updateField('lead_company_id', null)

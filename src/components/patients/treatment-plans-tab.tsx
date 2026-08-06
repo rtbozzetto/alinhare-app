@@ -989,7 +989,7 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                         updateField('lead_company_id', null)
                       } else {
                         // Default subtype when switching to clinica
-                        if (!form.lead_subtype) updateField('lead_subtype', 'midia_digital')
+                        if (!form.lead_subtype) updateField('lead_subtype', 'outros')
                       }
                     }}
                   >
@@ -1008,7 +1008,7 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                   <div className="space-y-2">
                     <Label>Categoria</Label>
                     <Select
-                      value={form.lead_subtype ?? 'midia_digital'}
+                      value={form.lead_subtype ?? 'outros'}
                       onValueChange={(value: string) => {
                         updateField('lead_subtype', value)
                         if (value !== 'parceria') updateField('lead_company_id', null)
@@ -1317,7 +1317,7 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                         updateEditField('lead_subtype', null)
                         updateEditField('lead_company_id', null)
                       } else {
-                        if (!editForm.lead_subtype) updateEditField('lead_subtype', 'midia_digital')
+                        if (!editForm.lead_subtype) updateEditField('lead_subtype', 'outros')
                       }
                     }}
                   >
@@ -1336,7 +1336,7 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                   <div className="space-y-2">
                     <Label>Categoria</Label>
                     <Select
-                      value={editForm.lead_subtype ?? 'midia_digital'}
+                      value={editForm.lead_subtype ?? 'outros'}
                       onValueChange={(value: string) => {
                         updateEditField('lead_subtype', value)
                         if (value !== 'parceria') updateEditField('lead_company_id', null)
