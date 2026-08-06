@@ -29,7 +29,7 @@ CREATE POLICY "admin_manage_clinic_settings"
 
 -- Seed com dados padrão da Janaína/Alinhare (usuário editará depois)
 INSERT INTO public.clinic_settings (emitter_name, emitter_document, emitter_city)
-VALUES ('Janaína Butafava', '', 'São Paulo');
+VALUES ('Janaína Butafava', '', 'Rio de Janeiro');
 
 -- ═══════════════════════════════════════════════════════════════
 -- RECEIPTS — Histórico de recibos emitidos

@@ -429,7 +429,7 @@ export default function ConfiguracoesPage() {
                   id="emitter_city"
                   value={emitterCity}
                   onChange={e => setEmitterCity(e.target.value)}
-                  placeholder="São Paulo"
+                  placeholder="Rio de Janeiro"
                 />
               </div>
 

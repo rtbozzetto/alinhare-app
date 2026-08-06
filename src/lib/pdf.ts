@@ -264,7 +264,7 @@ export function buildReceiptPdfBlob(data: ReceiptPdfData): Blob {
   y += lines.length * 6 + 10
 
   // Local e data
-  doc.text(`${data.city || data.emitterCity || 'São Paulo'}, ${formatDatePtBR(data.issuedAt)}.`, marginX, y)
+  doc.text(`${data.city || data.emitterCity || 'Rio de Janeiro'}, ${formatDatePtBR(data.issuedAt)}.`, marginX, y)
   y += 30
 
   // Assinatura
