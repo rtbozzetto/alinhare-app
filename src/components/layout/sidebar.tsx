@@ -22,6 +22,7 @@ import {
   Tag,
   Menu,
   Settings,
+  Handshake,
 } from 'lucide-react'
 
 const navItems = [
@@ -29,6 +30,7 @@ const navItems = [
   { href: '/agenda', label: 'Agenda', icon: Calendar, adminOnly: false },
   { href: '/profissionais', label: 'Profissionais', icon: UserCog, adminOnly: true },
   { href: '/precos', label: 'Preços', icon: Tag, adminOnly: true },
+  { href: '/parcerias', label: 'Parcerias', icon: Handshake, adminOnly: true },
   { href: '/faturamento', label: 'Faturamento', icon: DollarSign, adminOnly: true },
   { href: '/whatsapp', label: 'WhatsApp', icon: MessageCircle, adminOnly: true },
 ]

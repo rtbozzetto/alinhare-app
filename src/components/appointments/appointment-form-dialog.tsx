@@ -32,8 +32,11 @@ import {
   PAYMENT_STATUSES,
   PAYMENT_METHODS,
   LEAD_SOURCES,
+  LEAD_SUBTYPES,
+  PARTNERSHIP_DISCOUNT_PERCENT,
   SCHEDULE,
 } from '@/lib/constants'
+import { usePartnerCompanies } from '@/hooks/use-partner-companies'
 import { formatCurrency, calculateCommission, applyCreditCardFee } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Save, Trash2, Search, CalendarPlus } from 'lucide-react'
@@ -67,6 +70,7 @@ export function AppointmentFormDialog({
   const { patients } = usePatients()
   const { activeProfessionals } = useProfessionals()
   const { isAdmin, professionalId } = useUserRole()
+  const { activeCompanies: partnerCompanies } = usePartnerCompanies()
   const { grouped, getEvaluationPrice, getPlanOptions } = usePriceTables()
 
   const supabase = createClient()
@@ -101,6 +105,8 @@ export function AppointmentFormDialog({
     discount_type: 'value' as Appointment['discount_type'],
     lead_source: 'clinica' as Appointment['lead_source'],
     lead_professional_id: null as string | null,
+    lead_subtype: null as Appointment['lead_subtype'],
+    lead_company_id: null as string | null,
   })
 
   useEffect(() => {
@@ -120,6 +126,8 @@ export function AppointmentFormDialog({
         discount_type: appointment.discount_type,
         lead_source: appointment.lead_source,
         lead_professional_id: appointment.lead_professional_id,
+        lead_subtype: appointment.lead_subtype ?? null,
+        lead_company_id: appointment.lead_company_id ?? null,
       })
       setPatientSearch(appointment.patient?.full_name ?? '')
     } else {
@@ -139,6 +147,8 @@ export function AppointmentFormDialog({
         discount_type: 'value',
         lead_source: 'clinica',
         lead_professional_id: null,
+        lead_subtype: null,
+        lead_company_id: null,
       }))
       setPatientSearch(defaultPatientName ?? '')
       if (defaultPatientId) {
@@ -292,6 +302,8 @@ export function AppointmentFormDialog({
         discount_type: 'value',
         lead_source: plan.lead_source,
         lead_professional_id: plan.lead_professional_id,
+        lead_subtype: plan.lead_subtype ?? null,
+        lead_company_id: plan.lead_company_id ?? null,
       }))
     } else {
       setActivePlan(null)
@@ -401,6 +413,8 @@ export function AppointmentFormDialog({
       final_paid_amount: finalAmount,
       lead_source: form.lead_source,
       lead_professional_id: form.lead_professional_id || null,
+      lead_subtype: form.lead_source === 'clinica' ? form.lead_subtype : null,
+      lead_company_id: form.lead_source === 'clinica' && form.lead_subtype === 'parceria' ? form.lead_company_id : null,
       commission_percentage: commission.professionalPercent,
       commission_amount: commission.professionalAmount,
       clinic_amount: commission.clinicAmount,
@@ -869,8 +883,14 @@ export function AppointmentFormDialog({
                   value={form.lead_source}
                   onValueChange={(value: string) => {
                     updateField('lead_source', value)
-                    if (value === 'profissional' && !form.lead_professional_id) {
-                      updateField('lead_professional_id', form.professional_id)
+                    if (value === 'profissional') {
+                      if (!form.lead_professional_id) {
+                        updateField('lead_professional_id', form.professional_id)
+                      }
+                      updateField('lead_subtype', null)
+                      updateField('lead_company_id', null)
+                    } else {
+                      if (!form.lead_subtype) updateField('lead_subtype', 'midia_digital')
                     }
                   }}
                 >
@@ -886,6 +906,57 @@ export function AppointmentFormDialog({
                   </SelectContent>
                 </Select>
               </div>
+
+              {form.lead_source === 'clinica' && (
+                <div className="space-y-2">
+                  <Label>Categoria</Label>
+                  <Select
+                    value={form.lead_subtype ?? 'midia_digital'}
+                    onValueChange={(value: string) => {
+                      updateField('lead_subtype', value)
+                      if (value !== 'parceria') updateField('lead_company_id', null)
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LEAD_SUBTYPES.map(l => (
+                        <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {form.lead_source === 'clinica' && form.lead_subtype === 'parceria' && (
+                <div className="space-y-2">
+                  <Label>Empresa Parceira</Label>
+                  <Select
+                    value={form.lead_company_id ?? ''}
+                    onValueChange={(value: string) => {
+                      updateField('lead_company_id', value)
+                      updateField('discount_type', 'percent')
+                      updateField('discount_amount', PARTNERSHIP_DISCOUNT_PERCENT)
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a empresa..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {partnerCompanies.length === 0 ? (
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                          Nenhuma empresa cadastrada. Vá em Parcerias.
+                        </div>
+                      ) : (
+                        partnerCompanies.map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {form.lead_source === 'profissional' && (
                 <div className="space-y-2">

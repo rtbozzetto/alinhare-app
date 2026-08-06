@@ -26,7 +26,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { PAYMENT_STATUSES, PAYMENT_METHODS, LEAD_SOURCES, SCHEDULE } from '@/lib/constants'
+import { PAYMENT_STATUSES, PAYMENT_METHODS, LEAD_SOURCES, LEAD_SUBTYPES, PARTNERSHIP_DISCOUNT_PERCENT, SCHEDULE } from '@/lib/constants'
+import { usePartnerCompanies } from '@/hooks/use-partner-companies'
 import { formatCurrency, calculateCommission, applyCreditCardFee } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -53,6 +54,7 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
   const { activeProfessionals } = useProfessionals()
   const { professionalId, isAdmin } = useUserRole()
   const { grouped, getEvaluationPrice, getPlanOptions } = usePriceTables()
+  const { activeCompanies: partnerCompanies } = usePartnerCompanies()
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -97,6 +99,8 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
     discount_type: 'value' as TreatmentPlan['discount_type'],
     lead_source: 'clinica' as TreatmentPlan['lead_source'],
     lead_professional_id: null as string | null,
+    lead_subtype: null as TreatmentPlan['lead_subtype'],
+    lead_company_id: null as string | null,
   })
 
   const [editForm, setEditForm] = useState({
@@ -115,6 +119,8 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
     discount_type: 'value' as TreatmentPlan['discount_type'],
     lead_source: 'clinica' as TreatmentPlan['lead_source'],
     lead_professional_id: null as string | null,
+    lead_subtype: null as TreatmentPlan['lead_subtype'],
+    lead_company_id: null as string | null,
     active: true,
   })
 
@@ -270,6 +276,8 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
       discount_type: 'value',
       lead_source: 'clinica',
       lead_professional_id: null,
+      lead_subtype: null,
+      lead_company_id: null,
     })
     setDialogOpen(true)
   }
@@ -292,6 +300,8 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
       discount_type: plan.discount_type,
       lead_source: plan.lead_source,
       lead_professional_id: plan.lead_professional_id,
+      lead_subtype: plan.lead_subtype ?? null,
+      lead_company_id: plan.lead_company_id ?? null,
       active: plan.active,
     })
     setEditDialogOpen(true)
@@ -326,6 +336,8 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
       final_paid_amount: finalAmount,
       lead_source: form.lead_source,
       lead_professional_id: form.lead_professional_id,
+      lead_subtype: form.lead_source === 'clinica' ? form.lead_subtype : null,
+      lead_company_id: form.lead_source === 'clinica' && form.lead_subtype === 'parceria' ? form.lead_company_id : null,
       commission_percentage: commission.professionalPercent,
       commission_amount: commission.professionalAmount,
       clinic_amount: commission.clinicAmount,
@@ -419,6 +431,8 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
       active: editForm.active,
       lead_source: editForm.lead_source,
       lead_professional_id: editForm.lead_professional_id,
+      lead_subtype: editForm.lead_source === 'clinica' ? editForm.lead_subtype : null,
+      lead_company_id: editForm.lead_source === 'clinica' && editForm.lead_subtype === 'parceria' ? editForm.lead_company_id : null,
       final_paid_amount: editFinalAmount,
       commission_percentage: editCommission.professionalPercent,
       commission_amount: editCommission.professionalAmount,
@@ -620,6 +634,8 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
         final_paid_amount: perSessionPrice,
         lead_source: schedulingPlan.lead_source,
         lead_professional_id: schedulingPlan.lead_professional_id,
+        lead_subtype: schedulingPlan.lead_subtype ?? null,
+        lead_company_id: schedulingPlan.lead_company_id ?? null,
         commission_percentage: perSessionCommission.professionalPercent,
         commission_amount: perSessionCommission.professionalAmount,
         clinic_amount: perSessionCommission.clinicAmount,
@@ -964,8 +980,16 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                     value={form.lead_source}
                     onValueChange={(value: string) => {
                       updateField('lead_source', value)
-                      if (value === 'profissional' && !form.lead_professional_id) {
-                        updateField('lead_professional_id', form.professional_id)
+                      if (value === 'profissional') {
+                        if (!form.lead_professional_id) {
+                          updateField('lead_professional_id', form.professional_id)
+                        }
+                        // Clear clinic subtype fields
+                        updateField('lead_subtype', null)
+                        updateField('lead_company_id', null)
+                      } else {
+                        // Default subtype when switching to clinica
+                        if (!form.lead_subtype) updateField('lead_subtype', 'midia_digital')
                       }
                     }}
                   >
@@ -979,6 +1003,58 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                     </SelectContent>
                   </Select>
                 </div>
+
+                {form.lead_source === 'clinica' && (
+                  <div className="space-y-2">
+                    <Label>Categoria</Label>
+                    <Select
+                      value={form.lead_subtype ?? 'midia_digital'}
+                      onValueChange={(value: string) => {
+                        updateField('lead_subtype', value)
+                        if (value !== 'parceria') updateField('lead_company_id', null)
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LEAD_SUBTYPES.map(l => (
+                          <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {form.lead_source === 'clinica' && form.lead_subtype === 'parceria' && (
+                  <div className="space-y-2">
+                    <Label>Empresa Parceira</Label>
+                    <Select
+                      value={form.lead_company_id ?? ''}
+                      onValueChange={(value: string) => {
+                        updateField('lead_company_id', value)
+                        // Auto-fill 15% discount (editable)
+                        updateField('discount_type', 'percent')
+                        updateField('discount_amount', PARTNERSHIP_DISCOUNT_PERCENT)
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a empresa..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {partnerCompanies.length === 0 ? (
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                            Nenhuma empresa cadastrada. Vá em Parcerias.
+                          </div>
+                        ) : (
+                          partnerCompanies.map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 {form.lead_source === 'profissional' && (
                   <div className="space-y-2">
@@ -1234,8 +1310,14 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                     value={editForm.lead_source}
                     onValueChange={(value: string) => {
                       updateEditField('lead_source', value)
-                      if (value === 'profissional' && !editForm.lead_professional_id) {
-                        updateEditField('lead_professional_id', editForm.professional_id)
+                      if (value === 'profissional') {
+                        if (!editForm.lead_professional_id) {
+                          updateEditField('lead_professional_id', editForm.professional_id)
+                        }
+                        updateEditField('lead_subtype', null)
+                        updateEditField('lead_company_id', null)
+                      } else {
+                        if (!editForm.lead_subtype) updateEditField('lead_subtype', 'midia_digital')
                       }
                     }}
                   >
@@ -1249,6 +1331,57 @@ export function TreatmentPlansTab({ patientId, patientName, autoOpenCreate, onAu
                     </SelectContent>
                   </Select>
                 </div>
+
+                {editForm.lead_source === 'clinica' && (
+                  <div className="space-y-2">
+                    <Label>Categoria</Label>
+                    <Select
+                      value={editForm.lead_subtype ?? 'midia_digital'}
+                      onValueChange={(value: string) => {
+                        updateEditField('lead_subtype', value)
+                        if (value !== 'parceria') updateEditField('lead_company_id', null)
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LEAD_SUBTYPES.map(l => (
+                          <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {editForm.lead_source === 'clinica' && editForm.lead_subtype === 'parceria' && (
+                  <div className="space-y-2">
+                    <Label>Empresa Parceira</Label>
+                    <Select
+                      value={editForm.lead_company_id ?? ''}
+                      onValueChange={(value: string) => {
+                        updateEditField('lead_company_id', value)
+                        updateEditField('discount_type', 'percent')
+                        updateEditField('discount_amount', PARTNERSHIP_DISCOUNT_PERCENT)
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a empresa..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {partnerCompanies.length === 0 ? (
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                            Nenhuma empresa cadastrada. Vá em Parcerias.
+                          </div>
+                        ) : (
+                          partnerCompanies.map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 {editForm.lead_source === 'profissional' && (
                   <div className="space-y-2">

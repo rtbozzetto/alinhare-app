@@ -61,6 +61,8 @@ export interface TreatmentPlan {
   final_paid_amount: number
   lead_source: 'clinica' | 'profissional'
   lead_professional_id: string | null
+  lead_subtype: 'midia_digital' | 'parceria' | null
+  lead_company_id: string | null
   commission_percentage: number
   commission_amount: number
   clinic_amount: number
@@ -99,6 +101,8 @@ export interface Appointment {
   final_paid_amount: number
   lead_source: 'clinica' | 'profissional'
   lead_professional_id: string | null
+  lead_subtype: 'midia_digital' | 'parceria' | null
+  lead_company_id: string | null
   payment_method: 'dinheiro' | 'pix' | 'cartao'
   commission_percentage: number
   commission_amount: number
@@ -108,6 +112,14 @@ export interface Appointment {
   // Join fields
   patient?: Pick<Patient, 'full_name'>
   professional?: Pick<Professional, 'id' | 'full_name'>
+}
+
+export interface PartnerCompany {
+  id: string
+  name: string
+  active: boolean
+  created_at: string
+  updated_at: string
 }
 
 export interface PatientPhoto {

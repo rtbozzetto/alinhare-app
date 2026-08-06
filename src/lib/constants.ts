@@ -35,6 +35,15 @@ export const LEAD_SOURCES = [
   { value: 'profissional', label: 'Profissional' },
 ] as const
 
+// Lead subtypes (when lead_source === 'clinica')
+export const LEAD_SUBTYPES = [
+  { value: 'midia_digital', label: 'Mídia Digital' },
+  { value: 'parceria', label: 'Parceria' },
+] as const
+
+// Default discount percent for partnership companies
+export const PARTNERSHIP_DISCOUNT_PERCENT = 15
+
 // Sex options
 export const SEX_OPTIONS = [
   { value: 'masculino', label: 'Masculino' },
